@@ -2,26 +2,15 @@ mod constant;
 mod parser;
 
 use rusqlite::{Connection, Result};
-use std::fs;
-use std::fs::create_dir_all;
-use std::fs::File;
+use std::fs::{create_dir_all, File, read_dir};
 use std::io::copy;
 use std::path::{Path, PathBuf};
 use crate::constant::build_info;
 use crate::parser::arguments;
 
-fn get_ios_backup_directory() -> PathBuf {
-    let home = dirs::home_dir().expect("Could not determine home directory");
-    if cfg!(target_os = "windows") {
-        home.join("AppData/Roaming/Apple Computer/MobileSync/Backup")
-    } else {
-        home.join("Library/Application Support/MobileSync/Backup")
-    }
-}
-
 fn list_backups(backup_root: &Path) -> Vec<PathBuf> {
     let mut backups = Vec::new();
-    if let Ok(entries) = fs::read_dir(backup_root) {
+    if let Ok(entries) = read_dir(backup_root) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() && path.join("Info.plist").exists() {
@@ -68,19 +57,30 @@ fn extract_files(
     Ok(())
 }
 
-pub fn retriever() -> Result<()> {
-    let backup_root = get_ios_backup_directory();
-    let backups = list_backups(&backup_root);
+pub fn retriever() -> Result<String, String> {
     let metadata = build_info();
     let arguments = arguments(&metadata);
+    let backups = list_backups(&arguments.backup_dir);
+    if backups.is_empty() {
+        let err = format!("No backups found in {}", arguments.backup_dir.display());
+        return Err(err);
+    }
 
     for backup in backups {
         let manifest_db_path = backup.join("Manifest.db");
+        println!("Manifest: {}", manifest_db_path.display());
         if manifest_db_path.exists() {
-            let files = parse_manifest_db(&manifest_db_path)?;
-            extract_files(&backup, &arguments.backup_dir, &files).expect("Failed to extract files");
+            match parse_manifest_db(&manifest_db_path) {
+                Ok(files) => {
+                    extract_files(&backup, &arguments.output_dir, &files).expect("Failed to extract files");
+                }
+                Err(err) => {
+                    let error = format!("Failed to parse manifest: {}", err);
+                    return Err(error);
+                }
+            }
         }
     }
     // todo: Raise an error if no backups are found (manifest)
-    Ok(())
+    Ok("Success".to_string())
 }

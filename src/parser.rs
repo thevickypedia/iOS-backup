@@ -5,11 +5,22 @@ use std::path::PathBuf;
 pub struct ArgConfig {
     // todo: fail if backup dir doesn't exist
     pub backup_dir: PathBuf,
+    pub output_dir: PathBuf,
 }
 
 fn missing_value(key: &str) {
     println!("{} requires a value.", key);
     std::process::exit(1)
+}
+
+/// Default backup directory
+fn default_ios_backup_directory() -> PathBuf {
+    let home = dirs::home_dir().expect("Could not determine home directory");
+    if cfg!(target_os = "windows") {
+        home.join("AppData/Roaming/Apple Computer/MobileSync/Backup")
+    } else {
+        home.join("Library/Application Support/MobileSync/Backup")
+    }
 }
 
 /// Parses and returns the command-line arguments.
@@ -24,6 +35,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
 
     let mut version = false;
     let mut backup_dir = String::new();
+    let mut output_dir = String::new();
 
     // Loop through the command-line arguments and parse them.
     let mut i = 1; // Start from the second argument (args[0] is the program name).
@@ -41,11 +53,18 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
             "-V" | "-v" | "--version" => {
                 version = true;
             }
-            // todo: add more args
             "--backup-dir" | "--backup_dir" | "--source" | "--src" => {
                 i += 1; // Move to the next argument.
                 if i < args.len() {
                     backup_dir = args[i].clone();
+                } else {
+                    missing_value(&args[i]);
+                }
+            }
+            "--output-dir" | "--output_dir" | "--destination" | "--dst" => {
+                i += 1; // Move to the next argument.
+                if i < args.len() {
+                    output_dir = args[i].clone();
                 } else {
                     missing_value(&args[i]);
                 }
@@ -61,7 +80,18 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
         println!("{} {}", &metadata.pkg_name, &metadata.pkg_version);
         std::process::exit(0)
     }
+    let backup_dir_final = if backup_dir.is_empty() {
+        default_ios_backup_directory()
+    } else {
+        PathBuf::from(backup_dir)
+    };
+    let output_dir_final = if output_dir.is_empty() {
+        PathBuf::from("extracted_media")
+    } else {
+        PathBuf::from(output_dir)
+    };
     ArgConfig {
-        backup_dir: PathBuf::from(backup_dir),
+        backup_dir: backup_dir_final,
+        output_dir: output_dir_final,
     }
 }
