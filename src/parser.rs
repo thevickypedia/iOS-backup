@@ -65,7 +65,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
                 if i < args.len() {
                     serial = args[i].clone();
                 } else {
-                    missing_value(&args[i]);
+                    missing_value(&args[i - 1]);
                 }
             }
             "--backup-dir" | "--backup_dir" | "--source" | "--src" => {
@@ -73,7 +73,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
                 if i < args.len() {
                     backup_dir = args[i].clone();
                 } else {
-                    missing_value(&args[i]);
+                    missing_value(&args[i - 1]);
                 }
             }
             "--output-dir" | "--output_dir" | "--destination" | "--dst" => {
@@ -81,7 +81,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
                 if i < args.len() {
                     output_dir = args[i].clone();
                 } else {
-                    missing_value(&args[i]);
+                    missing_value(&args[i - 1]);
                 }
             }
             _ => {

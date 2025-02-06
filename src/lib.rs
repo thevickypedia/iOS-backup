@@ -95,9 +95,6 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<PathB
             let path = entry.path();
             if path.is_dir() {
                 let serial_number = path.file_name().unwrap().to_string_lossy().to_string();
-                // if !list && !serial_filter.is_empty() && serial_number != serial_filter {
-                //     continue;
-                // }
                 if list || serial_number == serial_filter {
                     backups.push(path);
                 }
@@ -115,6 +112,7 @@ fn parse_manifest_db(manifest_db_path: &Path) -> Result<Vec<(String, String)>> {
         let relative_path: String = row.get(1)?;
         Ok((file_id, relative_path))
     })?;
+    // todo: do a lazy instead of .collect
     rows.collect()
 }
 
@@ -151,7 +149,11 @@ pub fn retriever() -> Result<String, String> {
     }
     let backups = get_backups(&arguments.backup_dir, &arguments.serial_number, arguments.list);
     if backups.is_empty() {
-        let err = format!("No backups found for serial {} in {}", arguments.serial_number, arguments.backup_dir.display());
+        let err = if arguments.serial_number.is_empty() {
+            format!("No backups found in '{}'", arguments.backup_dir.display())
+        } else {
+            format!("No backups found for serial '{}' in '{}'", arguments.serial_number, arguments.backup_dir.display())
+        };
         return Err(err);
     }
     if arguments.list {
@@ -165,6 +167,7 @@ pub fn retriever() -> Result<String, String> {
         if manifest_db_path.exists() {
             match parse_manifest_db(&manifest_db_path) {
                 Ok(files) => {
+                    // todo: spin up threads
                     extract_files(&backup, &arguments.output_dir, &files).expect("Failed to extract files");
                 }
                 Err(err) => {
