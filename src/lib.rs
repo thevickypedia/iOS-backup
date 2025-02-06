@@ -1,18 +1,17 @@
+mod backup;
 mod constant;
 mod parser;
 mod squire;
 
-use crate::constant::build_info;
-use crate::parser::arguments;
 use plist::Value;
 use rusqlite::{Connection, Result};
 use std::fs::{create_dir_all, read_dir, File};
 use std::io::copy;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn list_backups(backups: Vec<(String, PathBuf)>) {
+fn list_backups(backups: Vec<backup::Backup>) {
     let mut max_serial = "Serial Number".len();
     let mut max_device = "Device".len();
     let mut max_product = "Product Name".len();
@@ -21,61 +20,23 @@ fn list_backups(backups: Vec<(String, PathBuf)>) {
     let mut max_size = "Size".len();
     let mut backup_info = Vec::new();
 
-    for (serial_number, path) in backups {
-        let info_plist = path.join("Info.plist");
-        if info_plist.exists() {
-            let info = Value::from_file(&info_plist).ok();
+    for backup in backups {
+        // Update max lengths dynamically
+        max_serial = max_serial.max(backup.serial_number.len());
+        max_device = max_device.max(backup.device_name.len());
+        max_product = max_product.max(backup.product_name.len());
+        max_date = max_date.max(backup.backup_date.len());
+        max_encrypted = max_encrypted.max(backup.encrypted.len());
+        max_size = max_size.max(backup.backup_size.len());
 
-            let device_name = info
-                .as_ref()
-                .and_then(|v| v.as_dictionary()?.get("Device Name"))
-                .and_then(Value::as_string)
-                .unwrap_or("Unknown Device")
-                .to_string();
-
-            let product_name = info
-                .as_ref()
-                .and_then(|v| v.as_dictionary()?.get("Product Name"))
-                .and_then(Value::as_string)
-                .unwrap_or("Unknown Product")
-                .to_string();
-
-            let backup_date = info
-                .as_ref()
-                .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
-                .map_or("Unknown Date".to_string(), |v| format!("{:?}", v));
-
-            let encrypted = info
-                .as_ref()
-                .and_then(|v| v.as_dictionary()?.get("IsEncrypted"))
-                .map_or("No".to_string(), |v| {
-                    if v.as_boolean().unwrap_or(false) {
-                        "Yes".to_string()
-                    } else {
-                        "No".to_string()
-                    }
-                });
-
-            let backup_size = squire::get_size(&path);
-            let backup_size_str = squire::size_converter(backup_size);
-
-            // Update max lengths dynamically
-            max_serial = max_serial.max(serial_number.len());
-            max_device = max_device.max(device_name.len());
-            max_product = max_product.max(product_name.len());
-            max_date = max_date.max(backup_date.len());
-            max_encrypted = max_encrypted.max(encrypted.len());
-            max_size = max_size.max(backup_size_str.len());
-
-            backup_info.push((
-                serial_number,
-                device_name,
-                product_name,
-                backup_date,
-                encrypted,
-                backup_size_str,
-            ));
-        }
+        backup_info.push((
+            backup.serial_number,
+            backup.device_name,
+            backup.product_name,
+            backup.backup_date,
+            backup.encrypted,
+            backup.backup_size,
+        ));
     }
 
     let table_width = max_serial + max_device + max_date + max_encrypted + 3 * 3; // 3 spaces between columns
@@ -130,7 +91,9 @@ fn list_backups(backups: Vec<(String, PathBuf)>) {
         width_size = max_size
     );
 
-    for (serial_number, device_name, product_name, backup_date, encrypted, backup_size) in &backup_info {
+    for (serial_number, device_name, product_name, backup_date, encrypted, backup_size) in
+        &backup_info
+    {
         println!(
             "{:<width_serial$} {:<width_device$} {:<width_product$} {:<width_date$} {:<width_enc$} {:<width_size$}",
             serial_number,
@@ -149,7 +112,15 @@ fn list_backups(backups: Vec<(String, PathBuf)>) {
     }
 }
 
-fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<(String, PathBuf)> {
+fn get_plist_key(info: &Option<Value>, key: &str, default: &str) -> String {
+    info.as_ref()
+        .and_then(|v| v.as_dictionary()?.get(key))
+        .and_then(Value::as_string)
+        .unwrap_or(default)
+        .to_string()
+}
+
+fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backup::Backup> {
     let mut backups = Vec::new();
     if let Ok(entries) = read_dir(backup_root) {
         for entry in entries.flatten() {
@@ -158,14 +129,38 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<(Stri
                 let info_plist = path.join("Info.plist");
                 if info_plist.exists() {
                     let info = Value::from_file(&info_plist).ok();
-                    let serial_number = info
+                    let serial_number = get_plist_key(&info, "Serial Number", "NO_SERIAL");
+                    let device_name = get_plist_key(&info, "Device Name", "Unknown Device");
+                    let product_name = get_plist_key(&info, "Product Name", "Unknown Product");
+
+                    // todo: Value is still returned as a Date object
+                    let backup_date = info
                         .as_ref()
-                        .and_then(|v| v.as_dictionary()?.get("Serial Number"))
-                        .and_then(Value::as_string)
-                        .unwrap_or("NO_SERIAL")
-                        .to_string();
+                        .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
+                        .map_or("Unknown Date".to_string(), |v| format!("{:?}", v));
+
+                    let encrypted = info
+                        .as_ref()
+                        .and_then(|v| v.as_dictionary()?.get("IsEncrypted"))
+                        .map_or("No".to_string(), |v| {
+                            if v.as_boolean().unwrap_or(false) {
+                                "Yes".to_string()
+                            } else {
+                                "No".to_string()
+                            }
+                        });
+                    let backup_size_raw = squire::get_size(&path);
+                    let backup_size = squire::size_converter(backup_size_raw);
                     if list || serial_number == serial_filter {
-                        backups.push((serial_number, path));
+                        backups.push(backup::Backup {
+                            path,
+                            serial_number,
+                            device_name,
+                            product_name,
+                            backup_date,
+                            backup_size,
+                            encrypted,
+                        });
                     }
                 }
             }
@@ -221,8 +216,8 @@ fn get_epoch() -> u64 {
 }
 
 pub fn retriever() -> Result<String, String> {
-    let metadata = build_info();
-    let arguments = arguments(&metadata);
+    let metadata = constant::build_info();
+    let arguments = parser::arguments(&metadata);
     if arguments.serial_number.is_empty() && !arguments.list {
         return Err(
             "Please provide the serial number (--serial) or use list (--list) option.".into(),
@@ -252,14 +247,14 @@ pub fn retriever() -> Result<String, String> {
 
     // todo: threads are not really useful until manifest parsing is iterated
     let mut threads = Vec::new();
-    for (_, backup) in backups {
-        let manifest_db_path = backup.join("Manifest.db");
+    for backup in backups {
+        let manifest_db_path = backup.path.join("Manifest.db");
         println!("Manifest: {}", manifest_db_path.display());
         if manifest_db_path.exists() {
             match parse_manifest_db(&manifest_db_path) {
                 Ok(files) => {
                     let files_cloned = files.clone();
-                    let backup_cloned = backup.clone();
+                    let backup_cloned = backup.path.clone();
                     let output_dir_cloned = arguments.output_dir.clone();
                     let thread = thread::spawn(move || {
                         extract_files(&backup_cloned, &output_dir_cloned, &files_cloned)
