@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn list_backups(backups: Vec<PathBuf>) {
+fn list_backups(backups: Vec<(String, PathBuf)>) {
     let mut max_serial = "Serial Number".len();
     let mut max_device = "Device".len();
     let mut max_product = "Product Name".len();
@@ -21,13 +21,11 @@ fn list_backups(backups: Vec<PathBuf>) {
     let mut max_size = "Size".len();
     let mut backup_info = Vec::new();
 
-    for path in backups {
+    for (serial_number, path) in backups {
         let info_plist = path.join("Info.plist");
         if info_plist.exists() {
             let info = Value::from_file(&info_plist).ok();
-            // todo: currently this uses the directory name (not serial number) - fix it
-            // println!("{:?}", &info);
-            let serial_number = path.file_name().unwrap().to_string_lossy().to_string();
+
             let device_name = info
                 .as_ref()
                 .and_then(|v| v.as_dictionary()?.get("Device Name"))
@@ -151,15 +149,24 @@ fn list_backups(backups: Vec<PathBuf>) {
     }
 }
 
-fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<PathBuf> {
+fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<(String, PathBuf)> {
     let mut backups = Vec::new();
     if let Ok(entries) = read_dir(backup_root) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                let serial_number = path.file_name().unwrap().to_string_lossy().to_string();
-                if list || serial_number == serial_filter {
-                    backups.push(path);
+                let info_plist = path.join("Info.plist");
+                if info_plist.exists() {
+                    let info = Value::from_file(&info_plist).ok();
+                    let serial_number = info
+                        .as_ref()
+                        .and_then(|v| v.as_dictionary()?.get("Serial Number"))
+                        .and_then(Value::as_string)
+                        .unwrap_or("NO_SERIAL")
+                        .to_string();
+                    if list || serial_number == serial_filter {
+                        backups.push((serial_number, path));
+                    }
                 }
             }
         }
@@ -245,7 +252,7 @@ pub fn retriever() -> Result<String, String> {
 
     // todo: threads are not really useful until manifest parsing is iterated
     let mut threads = Vec::new();
-    for backup in backups {
+    for (_, backup) in backups {
         let manifest_db_path = backup.join("Manifest.db");
         println!("Manifest: {}", manifest_db_path.display());
         if manifest_db_path.exists() {
