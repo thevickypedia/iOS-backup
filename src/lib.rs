@@ -45,7 +45,19 @@ fn list_backups(backups: Vec<PathBuf>) {
         }
     }
 
-    println!("\n\nAvailable iOS Device Backups\n\n");
+    let table_width = max_serial + max_device + max_date + max_encrypted + 3 * 3; // 3 spaces between columns
+    let title = "Available iOS Device Backups";
+    println!("\n{0:^1$}", title, table_width);
+
+    println!(
+        "{:-<width_serial$} {:-<width_device$} {:-<width_date$} {:-<width_enc$}",
+        "", "", "", "",
+        width_serial = max_serial,
+        width_device = max_device,
+        width_date = max_date,
+        width_enc = max_encrypted
+    );
+
     println!(
         "{:<width_serial$} {:<width_device$} {:<width_date$} {:<width_enc$}",
         "Serial Number", "Device", "Backup Date", "Encrypted",
