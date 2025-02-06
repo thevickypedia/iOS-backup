@@ -8,6 +8,8 @@ use rusqlite::{Connection, Result};
 use std::fs::{create_dir_all, read_dir, File};
 use std::io::copy;
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn list_backups(backups: Vec<PathBuf>) {
     let mut max_serial = "Serial Number".len();
@@ -113,6 +115,7 @@ fn parse_manifest_db(manifest_db_path: &Path) -> Result<Vec<(String, String)>> {
         Ok((file_id, relative_path))
     })?;
     // todo: do a lazy instead of .collect
+    //  tried several approaches to return the iterator but borrow checker won't allow
     rows.collect()
 }
 
@@ -141,6 +144,14 @@ fn extract_files(
     Ok(())
 }
 
+#[allow(dead_code)]
+fn get_epoch() -> u64 {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(n) => n.as_secs(),
+        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+    }
+}
+
 pub fn retriever() -> Result<String, String> {
     let metadata = build_info();
     let arguments = arguments(&metadata);
@@ -161,20 +172,33 @@ pub fn retriever() -> Result<String, String> {
         return Ok("".into())
     }
 
+    // todo: threads are not really useful until manifest parsing is iterated
+    let mut threads = Vec::new();
     for backup in backups {
         let manifest_db_path = backup.join("Manifest.db");
         println!("Manifest: {}", manifest_db_path.display());
         if manifest_db_path.exists() {
             match parse_manifest_db(&manifest_db_path) {
                 Ok(files) => {
-                    // todo: spin up threads
-                    extract_files(&backup, &arguments.output_dir, &files).expect("Failed to extract files");
+                    let files_cloned = files.clone();
+                    let backup_cloned = backup.clone();
+                    let output_dir_cloned = arguments.output_dir.clone();
+                    let thread = thread::spawn(move || {
+                        extract_files(&backup_cloned, &output_dir_cloned, &files_cloned)
+                            .expect("Failed to extract files");
+                    });
+                    threads.push((files, thread));
                 }
                 Err(err) => {
                     let error = format!("Failed to parse manifest: {}", err);
                     return Err(error);
                 }
             }
+        }
+    }
+    for (files, thread) in threads {
+        if thread.join().is_err() {
+            println!("Error processing files {:?}", files);
         }
     }
     Ok("Success".into())
