@@ -1,5 +1,6 @@
 mod constant;
 mod parser;
+mod squire;
 
 use crate::constant::build_info;
 use crate::parser::arguments;
@@ -14,36 +15,68 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn list_backups(backups: Vec<PathBuf>) {
     let mut max_serial = "Serial Number".len();
     let mut max_device = "Device".len();
+    let mut max_product = "Product Name".len();
     let mut max_date = "Backup Date".len();
     let mut max_encrypted = "Encrypted".len();
+    let mut max_size = "Size".len();
     let mut backup_info = Vec::new();
 
     for path in backups {
         let info_plist = path.join("Info.plist");
         if info_plist.exists() {
             let info = Value::from_file(&info_plist).ok();
+            // todo: currently this uses the directory name (not serial number) - fix it
+            // println!("{:?}", &info);
             let serial_number = path.file_name().unwrap().to_string_lossy().to_string();
-            let device_name = info.as_ref()
+            let device_name = info
+                .as_ref()
                 .and_then(|v| v.as_dictionary()?.get("Device Name"))
                 .and_then(Value::as_string)
                 .unwrap_or("Unknown Device")
                 .to_string();
 
-            let backup_date = info.as_ref()
+            let product_name = info
+                .as_ref()
+                .and_then(|v| v.as_dictionary()?.get("Product Name"))
+                .and_then(Value::as_string)
+                .unwrap_or("Unknown Product")
+                .to_string();
+
+            let backup_date = info
+                .as_ref()
                 .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
                 .map_or("Unknown Date".to_string(), |v| format!("{:?}", v));
 
-            let encrypted = info.as_ref()
+            let encrypted = info
+                .as_ref()
                 .and_then(|v| v.as_dictionary()?.get("IsEncrypted"))
-                .map_or("No".to_string(), |v| if v.as_boolean().unwrap_or(false) { "Yes".to_string() } else { "No".to_string() });
+                .map_or("No".to_string(), |v| {
+                    if v.as_boolean().unwrap_or(false) {
+                        "Yes".to_string()
+                    } else {
+                        "No".to_string()
+                    }
+                });
+
+            let backup_size = squire::get_size(&path);
+            let backup_size_str = squire::size_converter(backup_size);
 
             // Update max lengths dynamically
             max_serial = max_serial.max(serial_number.len());
             max_device = max_device.max(device_name.len());
+            max_product = max_product.max(product_name.len());
             max_date = max_date.max(backup_date.len());
             max_encrypted = max_encrypted.max(encrypted.len());
+            max_size = max_size.max(backup_size_str.len());
 
-            backup_info.push((serial_number, device_name, backup_date, encrypted));
+            backup_info.push((
+                serial_number,
+                device_name,
+                product_name,
+                backup_date,
+                encrypted,
+                backup_size_str,
+            ));
         }
     }
 
@@ -52,40 +85,68 @@ fn list_backups(backups: Vec<PathBuf>) {
     println!("\n{0:^1$}", title, table_width);
 
     println!(
-        "{:-<width_serial$} {:-<width_device$} {:-<width_date$} {:-<width_enc$}",
-        "", "", "", "",
+        "{:-<width_serial$} {:-<width_device$} {:-<width_product$} {:-<width_date$} {:-<width_enc$} {:-<width_size$}",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
         width_serial = max_serial,
         width_device = max_device,
+        width_product = max_product,
         width_date = max_date,
-        width_enc = max_encrypted
+        width_enc = max_encrypted,
+        width_size = max_size
     );
 
     println!(
-        "{:<width_serial$} {:<width_device$} {:<width_date$} {:<width_enc$}",
-        "Serial Number", "Device", "Backup Date", "Encrypted",
+        "{:<width_serial$} {:<width_device$} {:<width_product$} {:<width_date$} {:<width_enc$} {:<width_size$}",
+        "Serial Number",
+        "Device",
+        "Product",
+        "Backup Date",
+        "Encrypted",
+        "Size",
         width_serial = max_serial,
         width_device = max_device,
+        width_product = max_product,
         width_date = max_date,
-        width_enc = max_encrypted
+        width_enc = max_encrypted,
+        width_size = max_size
     );
 
     println!(
-        "{:-<width_serial$} {:-<width_device$} {:-<width_date$} {:-<width_enc$}",
-        "", "", "", "",
+        "{:-<width_serial$} {:-<width_device$} {:-<width_product$} {:-<width_date$} {:-<width_enc$} {:-<width_size$}",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
         width_serial = max_serial,
         width_device = max_device,
+        width_product = max_product,
         width_date = max_date,
-        width_enc = max_encrypted
+        width_enc = max_encrypted,
+        width_size = max_size
     );
 
-    for (serial_number, device_name, backup_date, encrypted) in &backup_info {
+    for (serial_number, device_name, product_name, backup_date, encrypted, backup_size) in &backup_info {
         println!(
-            "{:<width_serial$} {:<width_device$} {:<width_date$} {:<width_enc$}",
-            serial_number, device_name, backup_date, encrypted,
+            "{:<width_serial$} {:<width_device$} {:<width_product$} {:<width_date$} {:<width_enc$} {:<width_size$}",
+            serial_number,
+            device_name,
+            product_name,
+            backup_date,
+            encrypted,
+            backup_size,
             width_serial = max_serial,
             width_device = max_device,
+            width_product = max_product,
             width_date = max_date,
-            width_enc = max_encrypted
+            width_enc = max_encrypted,
+            width_size = max_size
         );
     }
 }
@@ -156,20 +217,30 @@ pub fn retriever() -> Result<String, String> {
     let metadata = build_info();
     let arguments = arguments(&metadata);
     if arguments.serial_number.is_empty() && !arguments.list {
-        return Err("Please provide the serial number (--serial) or use list (--list) option.".into())
+        return Err(
+            "Please provide the serial number (--serial) or use list (--list) option.".into(),
+        );
     }
-    let backups = get_backups(&arguments.backup_dir, &arguments.serial_number, arguments.list);
+    let backups = get_backups(
+        &arguments.backup_dir,
+        &arguments.serial_number,
+        arguments.list,
+    );
     if backups.is_empty() {
         let err = if arguments.serial_number.is_empty() {
             format!("No backups found in '{}'", arguments.backup_dir.display())
         } else {
-            format!("No backups found for serial '{}' in '{}'", arguments.serial_number, arguments.backup_dir.display())
+            format!(
+                "No backups found for serial '{}' in '{}'",
+                arguments.serial_number,
+                arguments.backup_dir.display()
+            )
         };
         return Err(err);
     }
     if arguments.list {
         list_backups(backups);
-        return Ok("".into())
+        return Ok("".into());
     }
 
     // todo: threads are not really useful until manifest parsing is iterated
