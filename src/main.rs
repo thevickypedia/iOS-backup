@@ -1,7 +1,7 @@
 fn main() {
     match ios::retriever() {
-        Ok(_) => {
-            println!("Backup has been extracted");
+        Ok(res) => {
+            println!("{}", res);
         }
         Err(err) => {
             println!("{}", err);

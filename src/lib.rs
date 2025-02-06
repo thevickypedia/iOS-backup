@@ -9,50 +9,43 @@ use std::fs::{create_dir_all, read_dir, File};
 use std::io::copy;
 use std::path::{Path, PathBuf};
 
-fn list_backups(backup_root: &Path) -> Vec<PathBuf> {
-    let mut backups = Vec::new();
-    let mut backup_path = Vec::new();
+fn list_backups(backups: Vec<PathBuf>) {
     let mut max_serial = "Serial Number".len();
     let mut max_device = "Device".len();
     let mut max_date = "Backup Date".len();
     let mut max_encrypted = "Encrypted".len();
+    let mut backup_info = Vec::new();
 
-    if let Ok(entries) = read_dir(backup_root) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                let info_plist = path.join("Info.plist");
-                if info_plist.exists() {
-                    let info = Value::from_file(&info_plist).ok();
-                    let serial_number = path.file_name().unwrap().to_string_lossy().to_string();
-                    let device_name = info.as_ref()
-                        .and_then(|v| v.as_dictionary()?.get("Device Name"))
-                        .and_then(Value::as_string)
-                        .unwrap_or("Unknown Device")
-                        .to_string();
+    for path in backups {
+        let info_plist = path.join("Info.plist");
+        if info_plist.exists() {
+            let info = Value::from_file(&info_plist).ok();
+            let serial_number = path.file_name().unwrap().to_string_lossy().to_string();
+            let device_name = info.as_ref()
+                .and_then(|v| v.as_dictionary()?.get("Device Name"))
+                .and_then(Value::as_string)
+                .unwrap_or("Unknown Device")
+                .to_string();
 
-                    let backup_date = info.as_ref()
-                        .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
-                        .map_or("Unknown Date".to_string(), |v| format!("{:?}", v));
+            let backup_date = info.as_ref()
+                .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
+                .map_or("Unknown Date".to_string(), |v| format!("{:?}", v));
 
-                    let encrypted = info.as_ref()
-                        .and_then(|v| v.as_dictionary()?.get("IsEncrypted"))
-                        .map_or("No".to_string(), |v| if v.as_boolean().unwrap_or(false) { "Yes".to_string() } else { "No".to_string() });
+            let encrypted = info.as_ref()
+                .and_then(|v| v.as_dictionary()?.get("IsEncrypted"))
+                .map_or("No".to_string(), |v| if v.as_boolean().unwrap_or(false) { "Yes".to_string() } else { "No".to_string() });
 
-                    // Update max lengths dynamically
-                    max_serial = max_serial.max(serial_number.len());
-                    max_device = max_device.max(device_name.len());
-                    max_date = max_date.max(backup_date.len());
-                    max_encrypted = max_encrypted.max(encrypted.len());
+            // Update max lengths dynamically
+            max_serial = max_serial.max(serial_number.len());
+            max_device = max_device.max(device_name.len());
+            max_date = max_date.max(backup_date.len());
+            max_encrypted = max_encrypted.max(encrypted.len());
 
-                    backups.push((serial_number, device_name, backup_date, encrypted));
-                    backup_path.push(path);
-                }
-            }
+            backup_info.push((serial_number, device_name, backup_date, encrypted));
         }
     }
 
-    // Print table headers dynamically aligned
+    println!("\n\nAvailable iOS Device Backups\n\n");
     println!(
         "{:<width_serial$} {:<width_device$} {:<width_date$} {:<width_enc$}",
         "Serial Number", "Device", "Backup Date", "Encrypted",
@@ -71,8 +64,7 @@ fn list_backups(backup_root: &Path) -> Vec<PathBuf> {
         width_enc = max_encrypted
     );
 
-    // Print each row
-    for (serial_number, device_name, backup_date, encrypted) in &backups {
+    for (serial_number, device_name, backup_date, encrypted) in &backup_info {
         println!(
             "{:<width_serial$} {:<width_device$} {:<width_date$} {:<width_enc$}",
             serial_number, device_name, backup_date, encrypted,
@@ -82,8 +74,25 @@ fn list_backups(backup_root: &Path) -> Vec<PathBuf> {
             width_enc = max_encrypted
         );
     }
+}
 
-    backup_path
+fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<PathBuf> {
+    let mut backups = Vec::new();
+    if let Ok(entries) = read_dir(backup_root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let serial_number = path.file_name().unwrap().to_string_lossy().to_string();
+                // if !list && !serial_filter.is_empty() && serial_number != serial_filter {
+                //     continue;
+                // }
+                if list || serial_number == serial_filter {
+                    backups.push(path);
+                }
+            }
+        }
+    }
+    backups
 }
 
 fn parse_manifest_db(manifest_db_path: &Path) -> Result<Vec<(String, String)>> {
@@ -125,13 +134,17 @@ fn extract_files(
 pub fn retriever() -> Result<String, String> {
     let metadata = build_info();
     let arguments = arguments(&metadata);
-    let backups = list_backups(&arguments.backup_dir);
+    if arguments.serial_number.is_empty() && !arguments.list {
+        return Err("Please provide the serial number (--serial) or use list (--list) option.".into())
+    }
+    let backups = get_backups(&arguments.backup_dir, &arguments.serial_number, arguments.list);
     if backups.is_empty() {
-        let err = format!("No backups found in {}", arguments.backup_dir.display());
+        let err = format!("No backups found for serial {} in {}", arguments.serial_number, arguments.backup_dir.display());
         return Err(err);
     }
     if arguments.list {
-        std::process::exit(0)
+        list_backups(backups);
+        return Ok("".into())
     }
 
     for backup in backups {
@@ -149,5 +162,5 @@ pub fn retriever() -> Result<String, String> {
             }
         }
     }
-    Ok("Success".to_string())
+    Ok("Success".into())
 }

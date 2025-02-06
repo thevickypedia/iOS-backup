@@ -4,6 +4,7 @@ use std::path::PathBuf;
 /// Struct to construct the commandline arguments.
 pub struct ArgConfig {
     pub list: bool,
+    pub serial_number: String,
     pub backup_dir: PathBuf,
     pub output_dir: PathBuf,
 }
@@ -35,6 +36,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
 
     let mut version = false;
     let mut list = false;
+    let mut serial = String::new();
     let mut backup_dir = String::new();
     let mut output_dir = String::new();
 
@@ -57,6 +59,14 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
             }
             "--list" | "-L" => {
                 list = true;
+            }
+            "--serial" | "-S" => {
+                i += 1; // Move to the next argument.
+                if i < args.len() {
+                    serial = args[i].clone();
+                } else {
+                    missing_value(&args[i]);
+                }
             }
             "--backup-dir" | "--backup_dir" | "--source" | "--src" => {
                 i += 1; // Move to the next argument.
@@ -103,6 +113,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     };
     ArgConfig {
         list,
+        serial_number: serial,
         backup_dir: backup_dir_final,
         output_dir: output_dir_final,
     }
