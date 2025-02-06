@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 /// Struct to construct the commandline arguments.
 pub struct ArgConfig {
-    // todo: fail if backup dir doesn't exist
+    pub list: bool,
     pub backup_dir: PathBuf,
     pub output_dir: PathBuf,
 }
@@ -34,6 +34,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     let args: Vec<String> = std::env::args().collect();
 
     let mut version = false;
+    let mut list = false;
     let mut backup_dir = String::new();
     let mut output_dir = String::new();
 
@@ -42,16 +43,20 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     while i < args.len() {
         match args[i].as_str() {
             "-h" | "--help" => {
-                let helper = "VaultAPI-Client takes the arguments, --env_file and --version/-v\n\n\
-                --env_file: Custom filename to load the environment variables. Defaults to '.env'\n\
-                --cipher: Cipher text to decrypt\n\
-                --version: Get the package version.\n"
+                let helper = "ios takes the following arguments\n\n\
+                --version/-v\n\
+                --backup-dir | --source: Custom path for the backup. Defaults to OS specific\n\
+                --output-dir | --destination: Destination directory. Defaults to 'extracted'\n\
+                --list | -L: List the available backups.\n"
                     .to_string();
                 println!("Usage: {} [OPTIONS]\n\n{}", args[0], helper);
                 std::process::exit(0)
             }
             "-V" | "-v" | "--version" => {
                 version = true;
+            }
+            "--list" | "-L" => {
+                list = true;
             }
             "--backup-dir" | "--backup_dir" | "--source" | "--src" => {
                 i += 1; // Move to the next argument.
@@ -83,14 +88,21 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     let backup_dir_final = if backup_dir.is_empty() {
         default_ios_backup_directory()
     } else {
-        PathBuf::from(backup_dir)
+        let tmp = PathBuf::from(backup_dir);
+        if tmp.exists() {
+            tmp
+        } else {
+            println!("Backup directory '{}' does not exist!", tmp.display());
+            std::process::exit(1)
+        }
     };
     let output_dir_final = if output_dir.is_empty() {
-        PathBuf::from("extracted_media")
+        PathBuf::from("extracted")
     } else {
         PathBuf::from(output_dir)
     };
     ArgConfig {
+        list,
         backup_dir: backup_dir_final,
         output_dir: output_dir_final,
     }
