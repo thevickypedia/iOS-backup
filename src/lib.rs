@@ -10,6 +10,7 @@ use std::io::copy;
 use std::path::Path;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use crate::backup::Backup;
 
 fn list_backups(backups: Vec<backup::Backup>) {
     let mut max_serial = "Serial Number".len();
@@ -141,7 +142,6 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
                     let device_name = get_plist_key(&info, "Device Name", "Unknown Device");
                     let product_name = get_plist_key(&info, "Product Name", "Unknown Product");
 
-                    // todo: Value is still returned as a Date object
                     let seconds = info
                         .as_ref()
                         .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
@@ -188,57 +188,80 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
     backups
 }
 
-fn parse_manifest_db(manifest_db_path: &Path) -> Result<Vec<(String, String)>> {
+fn parse_manifest_db(manifest_db_path: &Path, backup: &Backup, arguments: &parser::ArgConfig) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(manifest_db_path)?;
     let mut stmt = conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'")?;
     let rows = stmt.query_map([], |row| {
-        let file_id: String = match row.get(0) {
-            Ok(fid) => fid,
-            Err(err) => return Err(err),
-        };
-        let relative_path: String = match row.get(1) {
-            Ok(rp) => rp,
-            Err(err) => return Err(err),
-        };
+        let file_id: String = row.get(0)?;
+        let relative_path: String = row.get(1)?;
         Ok((file_id, relative_path))
     })?;
-    // todo: do a lazy instead of .collect
-    //  tried several approaches to return the iterator but borrow checker won't allow
-    rows.collect()
+
+    let mut threads = Vec::new();
+    let mut thread_spawned = 0;
+
+    for file in rows {
+        match file {
+            Ok((file_id, relative_path)) => {
+                thread_spawned += 1;
+                let backup_cloned = backup.path.clone();
+                let output_dir_cloned = arguments.output_dir.clone();
+                let thread = thread::spawn(move || {
+                    extract_files(&backup_cloned, &output_dir_cloned, file_id, relative_path)
+                        .expect("Failed to extract files");
+                });
+                threads.push(thread);
+            }
+            Err(err) => {
+                println!("Failed to submit thread operation: {}", err);
+            }
+        }
+    }
+
+    let mut thread_joined = 0;
+    // Ensure all threads are joined before proceeding
+    for thread in threads {
+        if let Err(err) = thread.join() {
+            println!("Error joining thread: {:?}", err);
+        } else {
+            thread_joined += 1
+        }
+    }
+    println!("Threads Spawned: {}", thread_spawned);
+    println!("Threads Joined: {}", thread_joined);
+    Ok(())
 }
 
 fn extract_files(
     backup_path: &Path,
     output_path: &Path,
-    files: &Vec<(String, String)>,
+    file_id: String,
+    relative_path: String,
 ) -> std::io::Result<()> {
-    for (file_id, relative_path) in files {
-        let src_path = backup_path.join(&file_id[..2]).join(file_id);
-        let dest_path = output_path.join(relative_path);
-        if let Some(parent) = dest_path.parent() {
-            match create_dir_all(parent) {
-                Ok(_) => (),
-                Err(err) => return Err(err),
-            }
+    let src_path = backup_path.join(&file_id[..2]).join(file_id);
+    let dest_path = output_path.join(relative_path);
+    if let Some(parent) = dest_path.parent() {
+        match create_dir_all(parent) {
+            Ok(_) => (),
+            Err(err) => return Err(err),
         }
-        if src_path.exists() {
-            let mut src_file = File::open(&src_path)?;
-            let mut dest_file = File::create(&dest_path)?;
-            match copy(&mut src_file, &mut dest_file) {
-                Ok(_) => (),
-                Err(err) => return Err(err),
-            }
-            println!(
-                "Extracted: {} -> {}",
-                src_path.display(),
-                dest_path.display()
-            );
+    }
+    if src_path.exists() {
+        let mut src_file = File::open(&src_path)?;
+        let mut dest_file = File::create(&dest_path)?;
+        match copy(&mut src_file, &mut dest_file) {
+            Ok(_) => (),
+            Err(err) => return Err(err),
         }
+        println!(
+            "Extracted: {} -> {}",
+            src_path.display(),
+            dest_path.display()
+        );
     }
     Ok(())
 }
 
-#[allow(dead_code)]
 fn get_epoch() -> u64 {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(n) => n.as_secs(),
@@ -276,33 +299,12 @@ pub fn retriever() -> Result<String, String> {
         return Ok("".into());
     }
 
-    // todo: threads are not really useful until manifest parsing is iterated
-    let mut threads = Vec::new();
+    // todo: swap current threads to thread pool and set this to threadpool
     for backup in backups {
         let manifest_db_path = backup.path.join("Manifest.db");
         println!("Manifest: {}", manifest_db_path.display());
         if manifest_db_path.exists() {
-            match parse_manifest_db(&manifest_db_path) {
-                Ok(files) => {
-                    let files_cloned = files.clone();
-                    let backup_cloned = backup.path.clone();
-                    let output_dir_cloned = arguments.output_dir.clone();
-                    let thread = thread::spawn(move || {
-                        extract_files(&backup_cloned, &output_dir_cloned, &files_cloned)
-                            .expect("Failed to extract files");
-                    });
-                    threads.push((files, thread));
-                }
-                Err(err) => {
-                    let error = format!("Failed to parse manifest: {}", err);
-                    return Err(error);
-                }
-            }
-        }
-    }
-    for (files, thread) in threads {
-        if thread.join().is_err() {
-            println!("Error processing files {:?}", files);
+            let _ = parse_manifest_db(&manifest_db_path, &backup, &arguments);
         }
     }
     Ok("Success".into())
