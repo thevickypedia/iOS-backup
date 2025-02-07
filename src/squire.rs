@@ -2,6 +2,83 @@ use std::fs;
 use std::fs::metadata;
 use std::path::Path;
 
+/// Function to convert seconds to human-readable format
+///
+/// # Arguments
+///
+/// * `seconds` - The number of seconds to convert
+///
+/// # Returns
+///
+/// A `String` containing the human-readable format of the seconds
+pub fn convert_seconds(seconds: i64, index: usize) -> String {
+    if seconds == 0 {
+        return "0 seconds".to_string();
+    }
+
+    let mut remaining_seconds = seconds;
+
+    let years = remaining_seconds / (60 * 60 * 24 * 365.25 as i64); // Approximate years with leap years
+    remaining_seconds %= 60 * 60 * 24 * 365.25 as i64;
+
+    let months = remaining_seconds / (60 * 60 * 24 * 30.44 as i64); // Approximate months with average days
+    remaining_seconds %= 60 * 60 * 24 * 30.44 as i64;
+
+    let days = remaining_seconds / 86_400; // 86,400 seconds in a day
+    remaining_seconds %= 86_400;
+
+    let hours = remaining_seconds / 3_600; // 3,600 seconds in an hour
+    remaining_seconds %= 3_600;
+
+    let minutes = remaining_seconds / 60; // 60 seconds in a minute
+    remaining_seconds %= 60;
+
+    let mut result = Vec::new();
+
+    if years > 0 {
+        result.push(format!(
+            "{} year{}",
+            years,
+            if years > 1 { "s" } else { "" }
+        ));
+    }
+    if months > 0 {
+        result.push(format!(
+            "{} month{}",
+            months,
+            if months > 1 { "s" } else { "" }
+        ));
+    }
+    if days > 0 {
+        result.push(format!("{} day{}", days, if days > 1 { "s" } else { "" }));
+    }
+    if hours > 0 {
+        result.push(format!(
+            "{} hour{}",
+            hours,
+            if hours > 1 { "s" } else { "" }
+        ));
+    }
+    if minutes > 0 && result.len() < 2 {
+        result.push(format!(
+            "{} minute{}",
+            minutes,
+            if minutes > 1 { "s" } else { "" }
+        ));
+    }
+    if remaining_seconds > 0 && result.len() < 2 {
+        result.push(format!(
+            "{} second{}",
+            remaining_seconds,
+            if remaining_seconds > 1 { "s" } else { "" }
+        ));
+    }
+    if result.len() >= index {
+        return result[0..index].join(" and ");
+    }
+    result.join(" and ")
+}
+
 pub fn get_size(path: &Path) -> u64 {
     if path.is_file() {
         metadata(path).map(|meta| meta.len()).unwrap_or(0)

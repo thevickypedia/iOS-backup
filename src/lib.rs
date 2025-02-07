@@ -3,7 +3,6 @@ mod constant;
 mod parser;
 mod squire;
 
-use chrono::{DateTime, Utc};
 use plist::Value;
 use rusqlite::{Connection, Result};
 use std::fs::{create_dir_all, read_dir, File};
@@ -143,32 +142,32 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
                     let product_name = get_plist_key(&info, "Product Name", "Unknown Product");
 
                     // todo: Value is still returned as a Date object
-                    let backup_date = info.as_ref()
+                    let seconds = info
+                        .as_ref()
                         .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
                         .and_then(Value::as_date)
-                        .map_or("Unknown Date".to_string(), |date| {
+                        .map_or(0, |date| {
                             let system_time: SystemTime = date.into();
                             let duration_since_epoch = system_time
                                 .duration_since(UNIX_EPOCH)
                                 .unwrap_or(Duration::new(0, 0));
-                            let datetime: DateTime<Utc> = (UNIX_EPOCH + duration_since_epoch).into();
-                            datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+                            duration_since_epoch.as_secs()
                         });
+                    let backup_date = format!(
+                        "{} ago",
+                        squire::convert_seconds((get_epoch() - seconds) as i64, 2)
+                    );
 
                     let encrypted = info
-                    .as_ref()
-                    .and_then(|v| {
-                        match v.as_dictionary() {
+                        .as_ref()
+                        .and_then(|v| match v.as_dictionary() {
                             Some(dict) => dict.get("IsEncrypted"),
                             None => None,
-                        }
-                    })
-                    .map_or("No".to_string(), |v| {
-                        match v.as_boolean() {
+                        })
+                        .map_or("No".to_string(), |v| match v.as_boolean() {
                             Some(true) => "Yes".to_string(),
                             _ => "No".to_string(),
-                        }
-                    });
+                        });
                     let backup_size_raw = squire::get_size(&path);
                     let backup_size = squire::size_converter(backup_size_raw);
                     if list || serial_number == serial_filter {
