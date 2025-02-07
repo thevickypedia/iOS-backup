@@ -229,7 +229,11 @@ fn parse_manifest_db(manifest_db_path: &Path, backup: &Backup, arguments: &parse
     }
     println!("Threads Spawned: {}", thread_spawned);
     println!("Threads Joined: {}", thread_joined);
-    Ok(())
+    if thread_spawned == thread_joined {
+        Ok(())
+    } else {
+        Err("Not all threads were awaited".into())
+    }
 }
 
 fn extract_files(
@@ -304,7 +308,13 @@ pub fn retriever() -> Result<String, String> {
         let manifest_db_path = backup.path.join("Manifest.db");
         println!("Manifest: {}", manifest_db_path.display());
         if manifest_db_path.exists() {
-            let _ = parse_manifest_db(&manifest_db_path, &backup, &arguments);
+            match parse_manifest_db(&manifest_db_path, &backup, &arguments) {
+                Ok(info) => info,
+                Err(err) => {
+                    println!("{}", err);
+                    return Err("Failed".into())
+                }
+            }
         }
     }
     Ok("Success".into())
