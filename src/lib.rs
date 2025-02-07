@@ -142,10 +142,11 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
                     let device_name = get_plist_key(&info, "Device Name", "Unknown Device");
                     let product_name = get_plist_key(&info, "Product Name", "Unknown Product");
 
-                    let seconds = info
+                    let date = info
                         .as_ref()
                         .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
-                        .and_then(Value::as_date)
+                        .and_then(Value::as_date);
+                    let seconds = date
                         .map_or(0, |date| {
                             let system_time: SystemTime = date.into();
                             let duration_since_epoch = system_time
@@ -155,7 +156,7 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
                         });
                     let backup_date = format!(
                         "{} ago",
-                        squire::convert_seconds((get_epoch() - seconds) as i64, 2)
+                        squire::convert_seconds((get_epoch() - seconds) as i64, 1)
                     );
 
                     let encrypted = info
