@@ -187,15 +187,9 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
 }
 
 fn parse_manifest_db(manifest_db_path: &Path) -> Result<Vec<(String, String)>> {
-    let conn = match Connection::open(manifest_db_path) {
-        Ok(connection) => connection,
-        Err(e) => return Err(e.into()), // or handle the error in another way, depending on your context
-    };
-    let mut stmt = match conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'") {
-        Ok(statement) => statement,
-        Err(e) => return Err(e.into()), // Handle the error as needed
-    };
-    let rows = match stmt.query_map([], |row| {
+    let conn = Connection::open(manifest_db_path)?;
+    let mut stmt = conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'")?;
+    let rows = stmt.query_map([], |row| {
         let file_id: String = match row.get(0) {
             Ok(fid) => fid,
             Err(err) => return Err(err),
@@ -205,10 +199,7 @@ fn parse_manifest_db(manifest_db_path: &Path) -> Result<Vec<(String, String)>> {
             Err(err) => return Err(err),
         };
         Ok((file_id, relative_path))
-    }) {
-        Ok(mapped_rows) => mapped_rows,
-        Err(e) => return Err(e.into()), // Handle the error appropriately
-    };
+    })?;
     // todo: do a lazy instead of .collect
     //  tried several approaches to return the iterator but borrow checker won't allow
     rows.collect()
@@ -229,14 +220,8 @@ fn extract_files(
             }
         }
         if src_path.exists() {
-            let mut src_file = match File::open(&src_path) {
-                Ok(file) => file,
-                Err(e) => return Err(e.into()), // Handle the error appropriately
-            };
-            let mut dest_file = match File::create(&dest_path) {
-                Ok(file) => file,
-                Err(e) => return Err(e.into()), // Handle the error appropriately
-            };
+            let mut src_file = File::open(&src_path)?;
+            let mut dest_file = File::create(&dest_path)?;
             match copy(&mut src_file, &mut dest_file) {
                 Ok(_) => (),
                 Err(err) => return Err(err),
