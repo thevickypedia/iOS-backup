@@ -113,11 +113,19 @@ fn list_backups(backups: Vec<backup::Backup>) {
 }
 
 fn get_plist_key(info: &Option<Value>, key: &str, default: &str) -> String {
-    info.as_ref()
-        .and_then(|v| v.as_dictionary()?.get(key))
-        .and_then(Value::as_string)
-        .unwrap_or(default)
-        .to_string()
+    match info.as_ref() {
+        Some(val) => match val.as_dictionary() {
+            Some(dict) => match dict.get(key) {
+                Some(value) => match value.as_string() {
+                    Some(str) => str.to_string(),
+                    None => default.to_string(),
+                },
+                None => default.to_string(),
+            },
+            None => default.to_string(),
+        },
+        None => default.to_string(),
+    }
 }
 
 fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backup::Backup> {
@@ -135,20 +143,29 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
 
                     // todo: Value is still returned as a Date object
                     let backup_date = info
-                        .as_ref()
-                        .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
-                        .map_or("Unknown Date".to_string(), |v| format!("{:?}", v));
+                    .as_ref()
+                    .and_then(|v| {
+                        match v.as_dictionary() {
+                            Some(dict) => dict.get("Last Backup Date"),
+                            None => None,
+                        }
+                    })
+                    .map_or("Unknown Date".to_string(), |v| format!("{:?}", v));
 
                     let encrypted = info
-                        .as_ref()
-                        .and_then(|v| v.as_dictionary()?.get("IsEncrypted"))
-                        .map_or("No".to_string(), |v| {
-                            if v.as_boolean().unwrap_or(false) {
-                                "Yes".to_string()
-                            } else {
-                                "No".to_string()
-                            }
-                        });
+                    .as_ref()
+                    .and_then(|v| {
+                        match v.as_dictionary() {
+                            Some(dict) => dict.get("IsEncrypted"),
+                            None => None,
+                        }
+                    })
+                    .map_or("No".to_string(), |v| {
+                        match v.as_boolean() {
+                            Some(true) => "Yes".to_string(),
+                            _ => "No".to_string(),
+                        }
+                    });
                     let backup_size_raw = squire::get_size(&path);
                     let backup_size = squire::size_converter(backup_size_raw);
                     if list || serial_number == serial_filter {
@@ -170,13 +187,28 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
 }
 
 fn parse_manifest_db(manifest_db_path: &Path) -> Result<Vec<(String, String)>> {
-    let conn = Connection::open(manifest_db_path)?;
-    let mut stmt = conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'")?;
-    let rows = stmt.query_map([], |row| {
-        let file_id: String = row.get(0)?;
-        let relative_path: String = row.get(1)?;
+    let conn = match Connection::open(manifest_db_path) {
+        Ok(connection) => connection,
+        Err(e) => return Err(e.into()), // or handle the error in another way, depending on your context
+    };
+    let mut stmt = match conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'") {
+        Ok(statement) => statement,
+        Err(e) => return Err(e.into()), // Handle the error as needed
+    };
+    let rows = match stmt.query_map([], |row| {
+        let file_id: String = match row.get(0) {
+            Ok(fid) => fid,
+            Err(err) => return Err(err),
+        };
+        let relative_path: String = match row.get(1) {
+            Ok(rp) => rp,
+            Err(err) => return Err(err),
+        };
         Ok((file_id, relative_path))
-    })?;
+    }) {
+        Ok(mapped_rows) => mapped_rows,
+        Err(e) => return Err(e.into()), // Handle the error appropriately
+    };
     // todo: do a lazy instead of .collect
     //  tried several approaches to return the iterator but borrow checker won't allow
     rows.collect()
@@ -191,12 +223,24 @@ fn extract_files(
         let src_path = backup_path.join(&file_id[..2]).join(file_id);
         let dest_path = output_path.join(relative_path);
         if let Some(parent) = dest_path.parent() {
-            create_dir_all(parent)?;
+            match create_dir_all(parent) {
+                Ok(_) => (),
+                Err(err) => return Err(err),
+            }
         }
         if src_path.exists() {
-            let mut src_file = File::open(&src_path)?;
-            let mut dest_file = File::create(&dest_path)?;
-            copy(&mut src_file, &mut dest_file)?;
+            let mut src_file = match File::open(&src_path) {
+                Ok(file) => file,
+                Err(e) => return Err(e.into()), // Handle the error appropriately
+            };
+            let mut dest_file = match File::create(&dest_path) {
+                Ok(file) => file,
+                Err(e) => return Err(e.into()), // Handle the error appropriately
+            };
+            match copy(&mut src_file, &mut dest_file) {
+                Ok(_) => (),
+                Err(err) => return Err(err),
+            }
             println!(
                 "Extracted: {} -> {}",
                 src_path.display(),
