@@ -2,6 +2,13 @@ use chrono::Local;
 
 pub struct SimpleLogger;
 
+/// Implementation of the `Log` trait for the `SimpleLogger` struct
+///
+/// This implementation provides the `enabled`, `log`, and `flush` functions
+/// for the `SimpleLogger` struct
+///
+/// The log format is customized to include the current time, log level, target,
+/// file, line, and the message
 impl log::Log for SimpleLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.level() <= log::Level::Info // Set log level filter here

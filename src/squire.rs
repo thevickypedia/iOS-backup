@@ -1,5 +1,6 @@
 use std::fs::metadata;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs, thread};
 
 /// Function to convert seconds to human-readable format
@@ -79,6 +80,15 @@ pub fn convert_seconds(seconds: i64, index: usize) -> String {
     result.join(" and ")
 }
 
+/// Function to get the size of a file or directory
+///
+/// # Arguments
+///
+/// * `path` - The path to the file or directory
+///
+/// # Returns
+///
+/// A `u64` containing the size of the file or directory
 pub fn get_size(path: &Path) -> u64 {
     if path.is_file() {
         metadata(path).map(|meta| meta.len()).unwrap_or(0)
@@ -116,13 +126,30 @@ pub fn size_converter(byte_size: u64) -> String {
 }
 
 /// Returns the default number of worker threads (logical cores)
+/// If the number of logical cores cannot be determined, it defaults to 8
+///
+/// # Returns
+///
+/// A `usize` containing the number of worker threads
 pub fn default_workers() -> usize {
     let logical_cores = thread::available_parallelism();
     match logical_cores {
         Ok(cores) => cores.get(),
         Err(err) => {
             log::error!("{}", err);
-            8
+            1
         }
+    }
+}
+
+/// Returns the current epoch time in seconds
+///
+/// # Returns
+///
+/// A `u64` containing the current epoch time in seconds
+pub fn get_epoch() -> u64 {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(n) => n.as_secs(),
+        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
     }
 }

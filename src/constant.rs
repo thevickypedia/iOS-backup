@@ -1,4 +1,16 @@
 use std::env;
+use std::path::PathBuf;
+
+/// Struct to store the backup information
+pub struct Backup {
+    pub path: PathBuf,
+    pub serial_number: String,
+    pub device_name: String,
+    pub product_name: String,
+    pub backup_date: String,
+    pub backup_size: String,
+    pub encrypted: String,
+}
 
 /// Struct to store the cargo information gathered at compile time using the `env!` macro.
 #[allow(dead_code)]

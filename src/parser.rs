@@ -11,12 +11,21 @@ pub struct ArgConfig {
     pub workers: usize,
 }
 
+/// Function to print an error message and exit when a value is missing.
+///
+/// # Arguments
+///
+/// * `key` - The key that requires a value
 fn missing_value(key: &str) {
     println!("{} requires a value.", key);
     std::process::exit(1)
 }
 
 /// Default backup directory
+///
+/// # Returns
+///
+/// A `PathBuf` containing the default backup directory path
 fn default_ios_backup_directory() -> PathBuf {
     let home = dirs::home_dir().expect("Could not determine home directory");
     if cfg!(target_os = "windows") {
@@ -26,6 +35,11 @@ fn default_ios_backup_directory() -> PathBuf {
     }
 }
 
+/// Helper function to print the command-line arguments.
+///
+/// # Returns
+///
+/// A `String` containing the command-line arguments
 fn helper() -> String {
     "ios crate takes the following arguments\n\n\
     \t--version: Print project version.\n\n\
@@ -44,7 +58,8 @@ fn helper() -> String {
 /// * `metadata` - Metadata object loaded with cargo information.
 ///
 /// # Returns
-/// * Commandline arguments loaded as an ``ArgConfig`` object.
+///
+/// Commandline arguments loaded as an ``ArgConfig`` object.
 pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     let args: Vec<String> = std::env::args().collect();
 
