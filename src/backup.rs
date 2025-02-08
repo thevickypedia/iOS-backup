@@ -117,13 +117,17 @@ pub fn list_backups(backups: &Vec<constant::Backup>) {
 /// # Arguments
 ///
 /// * `backup_root` - The path to the backup root directory
-/// * `serial_filter` - The serial number to filter the backups
-/// * `list` - A boolean flag to list available backups
+/// * `serial_filters` - The serial number(s) to filter the backups
+/// * `no_filter` - Boolean flag to include all backups
 ///
 /// # Returns
 ///
 /// A vector of `Backup` structs
-pub fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<constant::Backup> {
+pub fn get_backups(
+    backup_root: &Path,
+    serial_filters: &[String],
+    no_filter: bool,
+) -> Vec<constant::Backup> {
     let mut backups = Vec::new();
     if let Ok(entries) = read_dir(backup_root) {
         for entry in entries.flatten() {
@@ -134,7 +138,8 @@ pub fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<c
                     let info = Value::from_file(&info_plist).ok();
                     let serial_number = fileio::get_plist_key(&info, "Serial Number", "NO_SERIAL");
                     let device_name = fileio::get_plist_key(&info, "Device Name", "Unknown Device");
-                    let product_name = fileio::get_plist_key(&info, "Product Name", "Unknown Product");
+                    let product_name =
+                        fileio::get_plist_key(&info, "Product Name", "Unknown Product");
 
                     let date = info
                         .as_ref()
@@ -171,7 +176,7 @@ pub fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<c
                         });
                     let backup_size_raw = squire::get_size(&path);
                     let backup_size = squire::size_converter(backup_size_raw);
-                    if list || serial_number == serial_filter {
+                    if no_filter || serial_filters.contains(&serial_number) {
                         backups.push(constant::Backup {
                             path,
                             serial_number,

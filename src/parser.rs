@@ -4,8 +4,9 @@ use std::path::PathBuf;
 /// Struct to construct the commandline arguments.
 pub struct ArgConfig {
     pub list: bool,
+    pub all: bool,
     pub debug: bool,
-    pub serial_number: String,
+    pub serial_numbers: Vec<String>,
     pub backup_dir: PathBuf,
     pub output_dir: PathBuf,
     pub workers: usize,
@@ -65,6 +66,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
 
     let mut version = false;
     let mut list = false;
+    let mut all = false;
     let mut debug = false;
     let mut serial = String::new();
     let mut backup_dir = String::new();
@@ -84,6 +86,9 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
             }
             "--list" => {
                 list = true;
+            }
+            "--all" => {
+                all = true;
             }
             "--debug" => {
                 debug = true;
@@ -152,10 +157,21 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     } else {
         workers.parse::<usize>().unwrap()
     };
+    // empty string -> [""]
+    // let serial_numbers: Vec<String> = serial.split(",").map(String::from).collect();
+    // using map
+    // let serial_numbers: Vec<String> = serial.split(",").map(String::from).filter(|s| !s.is_empty()).collect();
+    // using filter
+    let serial_numbers: Vec<String> = serial
+        .split(",")
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
     ArgConfig {
         list,
+        all,
         debug,
-        serial_number: serial,
+        serial_numbers,
         backup_dir: backup_dir_final,
         output_dir: output_dir_final,
         workers: workers_final,

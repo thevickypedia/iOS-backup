@@ -1,16 +1,16 @@
 #![allow(rustdoc::bare_urls)]
 #![doc = include_str!("../README.md")]
 
-/// Module to load the required structs
-pub mod constant;
 /// Module to handle backup operations
 pub mod backup;
+/// Module to load the required structs
+pub mod constant;
+/// Module to handle database operations
+pub mod fileio;
 /// Module to construct a custom logger
 pub mod logger;
 /// Module to parse command line arguments
 pub mod parser;
-/// Module to handle database operations
-pub mod fileio;
 /// Module for helper functions
 pub mod squire;
 
@@ -25,9 +25,10 @@ use rusqlite::Result;
 pub fn retriever() -> Result<String, String> {
     let metadata = constant::build_info();
     let arguments = parser::arguments(&metadata);
-    if arguments.serial_number.is_empty() && !arguments.list {
+    if arguments.serial_numbers.is_empty() && !arguments.list {
         return Err(
-            "Please provide the serial number (--serial) or use list (--list) option.".into(),
+            "Please provide a serial number (--serial) or use all (--all) / list (--list) options."
+                .into(),
         );
     }
     log::set_logger(&logger::SimpleLogger).unwrap();
@@ -43,16 +44,16 @@ pub fn retriever() -> Result<String, String> {
     );
     let backups = backup::get_backups(
         &arguments.backup_dir,
-        &arguments.serial_number,
-        arguments.list,
+        &arguments.serial_numbers,
+        arguments.list || arguments.all,
     );
     if backups.is_empty() {
-        let err = if arguments.serial_number.is_empty() {
+        let err = if arguments.serial_numbers.is_empty() {
             format!("No backups found in '{}'", arguments.backup_dir.display())
         } else {
             format!(
-                "No backups found for serial '{}' in '{}'",
-                arguments.serial_number,
+                "No backups found for serial(s) '{:?}' in '{}'",
+                arguments.serial_numbers,
                 arguments.backup_dir.display()
             )
         };
