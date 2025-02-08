@@ -2,8 +2,6 @@
 name = "ios"
 version = "0.0.1"
 description = "Light-weight CLI tool to extract iOS backup"
-edition = "2021"
-authors = ["Vignesh Rao"]
 license = "MIT"
 rust-version = "1.80.0"
 documentation = "https://docs.rs/ios/latest/ios"
@@ -13,10 +11,19 @@ keywords = ["iOS-backup", "sqlite"]
 categories = ["no-std", "command-line-utilities", "development-tools"]
 include = ["/src", "LICENSE"]
 exclude = [".github", ".gitignore", "README.md"]
+edition = "2021"
+authors = ["Vignesh Rao"]
+
+[lib]
+name = "ios"
+path = "src/lib.rs"
 
 [[bin]]
 name = "ios"
 path = "src/main.rs"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--document-private-items"]
 
 [dependencies]
 rusqlite = { version = "0.33.0", features = ["bundled"] }
