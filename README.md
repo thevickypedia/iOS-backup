@@ -35,9 +35,14 @@ fn main() {
 <details>
 <summary><strong>Download OS specific Executable</strong></summary>
 
-###### macOS
+###### macOS (x86)
 ```shell
 curl -o ios-Darwin-x86_64.tar.gz -LH "Accept: application/octet-stream" "https://github.com/thevickypedia/ios/releases/latest/download/ios-Darwin-x86_64.tar.gz"
+```
+
+###### macOS (ARM)
+```shell
+curl -o ios-Darwin-arm64.tar.gz -LH "Accept: application/octet-stream" "https://github.com/thevickypedia/ios/releases/latest/download/ios-Darwin-arm64.tar.gz"
 ```
 
 ###### Linux
