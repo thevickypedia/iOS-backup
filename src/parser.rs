@@ -46,7 +46,8 @@ fn helper() -> String {
     \t--version: Print project version.\n\n\
     \t--list: List the available backups.\n\
     \t--debug: Enable debug level logging.\n\
-    \t--serial: Initiate backup extraction for a given serial.\n\
+    \t--all: Extract all available backups.\n\
+    \t--serial: Initiate backup extraction for given serial number(s).\n\
     \t--workers: Numbers of workers (threads) to spin up for extraction.\n\
     \t--backup-dir | --source: Custom path for the backup. Defaults to OS specific path.\n\
     \t--output-dir | --destination: Destination directory. Defaults to 'extracted' in current path.\n"
@@ -69,9 +70,9 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     let mut all = false;
     let mut debug = false;
     let mut serial = String::new();
+    let mut workers = String::new();
     let mut backup_dir = String::new();
     let mut output_dir = String::new();
-    let mut workers = String::new();
 
     // Loop through the command-line arguments and parse them.
     let mut i = 1; // Start from the second argument (args[0] is the program name).
@@ -157,11 +158,6 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     } else {
         workers.parse::<usize>().unwrap()
     };
-    // empty string -> [""]
-    // let serial_numbers: Vec<String> = serial.split(",").map(String::from).collect();
-    // using map
-    // let serial_numbers: Vec<String> = serial.split(",").map(String::from).filter(|s| !s.is_empty()).collect();
-    // using filter
     let serial_numbers: Vec<String> = serial
         .split(",")
         .filter(|s| !s.is_empty())

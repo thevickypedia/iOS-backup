@@ -16,7 +16,7 @@ pub mod squire;
 
 use rusqlite::Result;
 
-/// Function to parse and extracrt iOS backup data
+/// Function to parse and extract iOS backup data
 ///
 /// # Returns
 ///
@@ -25,7 +25,9 @@ use rusqlite::Result;
 pub fn retriever() -> Result<String, String> {
     let metadata = constant::build_info();
     let arguments = parser::arguments(&metadata);
-    if arguments.serial_numbers.is_empty() && !arguments.list {
+    let empty_serial = arguments.serial_numbers.is_empty();
+    let no_filter = arguments.list || arguments.all;
+    if empty_serial && !no_filter {
         return Err(
             "Please provide a serial number (--serial) or use all (--all) / list (--list) options."
                 .into(),
@@ -42,13 +44,9 @@ pub fn retriever() -> Result<String, String> {
         "Searching for backup data in '{}'",
         &arguments.backup_dir.display()
     );
-    let backups = backup::get_backups(
-        &arguments.backup_dir,
-        &arguments.serial_numbers,
-        arguments.list || arguments.all,
-    );
+    let backups = backup::get_backups(&arguments.backup_dir, &arguments.serial_numbers, no_filter);
     if backups.is_empty() {
-        let err = if arguments.serial_numbers.is_empty() {
+        let err = if empty_serial {
             format!("No backups found in '{}'", arguments.backup_dir.display())
         } else {
             format!(

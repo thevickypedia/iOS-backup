@@ -44,7 +44,8 @@ fn main() {
 - `--version` - Print project version.
 - `--list` - List the available backups.
 - `--debug` - Enable debug level logging.
-- `--serial` - Initiate backup extraction for a given serial.
+- `--all` - Extract all available backups.
+- `--serial` - Initiate backup extraction for given serial number(s).
 - `--workers` - Numbers of workers (threads) to spin up for extraction.
 - `--backup-dir` | `--source` - Custom path for the backup. Defaults to OS specific path.
 - `--output-dir` | `--destination` - Destination directory. Defaults to 'extracted' in current path.
