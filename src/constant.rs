@@ -2,6 +2,8 @@ use std::env;
 use std::path::PathBuf;
 
 /// Struct to store the backup information
+///
+/// This includes the path to the backup, serial number, device name, product name, backup date, backup size, and encryption status.
 pub struct Backup {
     pub path: PathBuf,
     pub serial_number: String,

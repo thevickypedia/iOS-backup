@@ -118,7 +118,7 @@ pub fn list_backups(backups: &Vec<constant::Backup>) {
 ///
 /// * `backup_root` - The path to the backup root directory
 /// * `serial_filter` - The serial number to filter the backups
-/// * `list` - A boolean to list the backups
+/// * `list` - A boolean flag to list available backups
 ///
 /// # Returns
 ///

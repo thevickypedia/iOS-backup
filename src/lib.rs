@@ -1,13 +1,22 @@
-mod constant;
-mod backup;
-mod logger;
-mod parser;
-mod fileio;
-mod squire;
+#![allow(rustdoc::bare_urls)]
+#![doc = include_str!("../README.md")]
+
+/// Module to load the required structs
+pub mod constant;
+/// Module to handle backup operations
+pub mod backup;
+/// Module to construct a custom logger
+pub mod logger;
+/// Module to parse command line arguments
+pub mod parser;
+/// Module to handle database operations
+pub mod fileio;
+/// Module for helper functions
+pub mod squire;
 
 use rusqlite::Result;
 
-/// Function to retrieve backup data from the specified directory
+/// Function to parse and extracrt iOS backup data
 ///
 /// # Returns
 ///

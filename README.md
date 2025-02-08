@@ -17,6 +17,8 @@ cargo add ios
 ```
 
 ### Usage
+
+**Embedded**
 ```rust
 use ios;
 
@@ -31,6 +33,23 @@ fn main() {
     };
 }
 ```
+
+**CLI**
+```
+./ios
+```
+
+`ios` crate takes the following arguments
+
+- `--version` - Print project version.
+- `--list` - List the available backups.
+- `--debug` - Enable debug level logging.
+- `--serial` - Initiate backup extraction for a given serial.
+- `--workers` - Numbers of workers (threads) to spin up for extraction.
+- `--backup-dir` | `--source` - Custom path for the backup. Defaults to OS specific path.
+- `--output-dir` | `--destination` - Destination directory. Defaults to 'extracted' in current path.
+
+<br>
 
 <details>
 <summary><strong>Download OS specific Executable</strong></summary>
