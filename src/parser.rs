@@ -26,6 +26,18 @@ fn default_ios_backup_directory() -> PathBuf {
     }
 }
 
+fn helper() -> String {
+    "ios crate takes the following arguments\n\n\
+    \t--version: Print project version.\n\n\
+    \t--list: List the available backups.\n\
+    \t--debug: Enable debug level logging.\n\
+    \t--serial: Initiate backup extraction for a given serial.\n\
+    \t--workers: Numbers of workers (threads) to spin up for extraction.\n\
+    \t--backup-dir | --source: Custom path for the backup. Defaults to OS specific path.\n\
+    \t--output-dir | --destination: Destination directory. Defaults to 'extracted' in current path.\n"
+    .to_string()
+}
+
 /// Parses and returns the command-line arguments.
 ///
 /// # Arguments
@@ -48,29 +60,31 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     let mut i = 1; // Start from the second argument (args[0] is the program name).
     while i < args.len() {
         match args[i].as_str() {
-            "-h" | "--help" => {
-                let helper = "ios takes the following arguments\n\n\
-                --version/-v\n\
-                --backup-dir | --source: Custom path for the backup. Defaults to OS specific\n\
-                --output-dir | --destination: Destination directory. Defaults to 'extracted'\n\
-                --list | -L: List the available backups.\n"
-                    .to_string();
-                println!("Usage: {} [OPTIONS]\n\n{}", args[0], helper);
+            "-h" | "--help" | "-H" => {
+                println!("Usage: {} [OPTIONS]\n\n{}", args[0], helper());
                 std::process::exit(0)
             }
             "-V" | "-v" | "--version" => {
                 version = true;
             }
-            "--list" | "-L" => {
+            "--list" => {
                 list = true;
             }
             "--debug" => {
                 debug = true;
             }
-            "--serial" | "-S" => {
+            "--serial" => {
                 i += 1; // Move to the next argument.
                 if i < args.len() {
                     serial = args[i].clone();
+                } else {
+                    missing_value(&args[i - 1]);
+                }
+            }
+            "--workers" => {
+                i += 1; // Move to the next argument.
+                if i < args.len() {
+                    workers = args[i].clone();
                 } else {
                     missing_value(&args[i - 1]);
                 }
@@ -91,16 +105,8 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
                     missing_value(&args[i - 1]);
                 }
             }
-            "--workers" => {
-                i += 1; // Move to the next argument.
-                if i < args.len() {
-                    workers = args[i].clone();
-                } else {
-                    missing_value(&args[i - 1]);
-                }
-            }
             _ => {
-                println!("Unknown argument: {}", args[i]);
+                println!("\nERROR: Unknown argument: {}\n\n{}", args[i], helper());
                 std::process::exit(1)
             }
         }
