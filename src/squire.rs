@@ -1,6 +1,8 @@
-use std::fs;
+use std::{fs, thread};
 use std::fs::metadata;
 use std::path::Path;
+
+
 
 /// Function to convert seconds to human-readable format
 ///
@@ -113,4 +115,16 @@ pub fn size_converter(byte_size: u64) -> String {
     }
 
     format!("{:.2} {}", size, size_name[index])
+}
+
+/// Returns the default number of worker threads (logical cores)
+pub fn default_workers() -> usize {
+    let logical_cores = thread::available_parallelism();
+    match logical_cores {
+        Ok(cores) => cores.get(),
+        Err(err) => {
+            log::error!("{}", err);
+            8
+        }
+    }
 }

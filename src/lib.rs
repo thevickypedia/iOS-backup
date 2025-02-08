@@ -1,5 +1,6 @@
 mod backup;
 mod constant;
+mod logger;
 mod parser;
 mod squire;
 
@@ -8,11 +9,11 @@ use rusqlite::{Connection, Result};
 use std::fs::{create_dir_all, read_dir, File};
 use std::io::copy;
 use std::path::Path;
-use std::thread;
+use std::sync::mpsc::channel;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use crate::backup::Backup;
+use threadpool::ThreadPool;
 
-fn list_backups(backups: Vec<backup::Backup>) {
+fn list_backups(backups: &Vec<backup::Backup>) {
     let mut max_serial = "Serial Number".len();
     let mut max_device = "Device".len();
     let mut max_product = "Product Name".len();
@@ -31,18 +32,18 @@ fn list_backups(backups: Vec<backup::Backup>) {
         max_size = max_size.max(backup.backup_size.len());
 
         backup_info.push((
-            backup.serial_number,
-            backup.device_name,
-            backup.product_name,
-            backup.backup_date,
-            backup.encrypted,
-            backup.backup_size,
+            &backup.serial_number,
+            &backup.device_name,
+            &backup.product_name,
+            &backup.backup_date,
+            &backup.encrypted,
+            &backup.backup_size,
         ));
     }
 
     let table_width = max_serial + max_device + max_date + max_encrypted + 3 * 3; // 3 spaces between columns
     let title = "Available iOS Device Backups";
-    println!("\n{0:^1$}", title, table_width);
+    println!("\n\n{0:^1$}", title, table_width);
 
     println!(
         "{:-<width_serial$} {:-<width_device$} {:-<width_product$} {:-<width_date$} {:-<width_enc$} {:-<width_size$}",
@@ -146,14 +147,13 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
                         .as_ref()
                         .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
                         .and_then(Value::as_date);
-                    let seconds = date
-                        .map_or(0, |date| {
-                            let system_time: SystemTime = date.into();
-                            let duration_since_epoch = system_time
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap_or(Duration::new(0, 0));
-                            duration_since_epoch.as_secs()
-                        });
+                    let seconds = date.map_or(0, |date| {
+                        let system_time: SystemTime = date.into();
+                        let duration_since_epoch = system_time
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or(Duration::new(0, 0));
+                        duration_since_epoch.as_secs()
+                    });
                     let backup_date = format!(
                         "{} ago",
                         squire::convert_seconds((get_epoch() - seconds) as i64, 1)
@@ -189,52 +189,48 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
     backups
 }
 
-fn parse_manifest_db(manifest_db_path: &Path, backup: &Backup, arguments: &parser::ArgConfig) -> Result<(), Box<dyn std::error::Error>> {
+fn parse_manifest_db(
+    manifest_db_path: &Path,
+    backup: &backup::Backup,
+    arguments: &parser::ArgConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(manifest_db_path)?;
-    let mut stmt = conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'")?;
+    let mut stmt = conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%' LIMIT 2")?;  // TODO: REVERT
     let rows = stmt.query_map([], |row| {
         let file_id: String = row.get(0)?;
         let relative_path: String = row.get(1)?;
         Ok((file_id, relative_path))
     })?;
 
-    let mut threads = Vec::new();
-    let mut thread_spawned = 0;
+    // Create a thread pool with a fixed number of threads
+    let pool = ThreadPool::new(arguments.workers);
+    let (sender, receiver) = channel();
 
     for file in rows {
         match file {
             Ok((file_id, relative_path)) => {
-                thread_spawned += 1;
                 let backup_cloned = backup.path.clone();
                 let output_dir_cloned = arguments.output_dir.clone();
-                let thread = thread::spawn(move || {
-                    extract_files(&backup_cloned, &output_dir_cloned, file_id, relative_path)
-                        .expect("Failed to extract files");
+                let sender_cloned = sender.clone();
+                pool.execute(move || {
+                    let result =
+                        extract_files(&backup_cloned, &output_dir_cloned, file_id, relative_path);
+                    sender_cloned.send(result).expect("Failed to send result");
                 });
-                threads.push(thread);
             }
             Err(err) => {
-                println!("Failed to submit thread operation: {}", err);
+                log::error!("Failed to submit thread operation: {}", err);
             }
         }
     }
-
-    let mut thread_joined = 0;
-    // Ensure all threads are joined before proceeding
-    for thread in threads {
-        if let Err(err) = thread.join() {
-            println!("Error joining thread: {:?}", err);
-        } else {
-            thread_joined += 1
+    // Wait for all tasks to complete
+    drop(sender); // Close the sending side of the channel
+    for result in receiver {
+        if let Err(err) = result {
+            log::error!("Error processing files: {:?}", err);
         }
     }
-    println!("Threads Spawned: {}", thread_spawned);
-    println!("Threads Joined: {}", thread_joined);
-    if thread_spawned == thread_joined {
-        Ok(())
-    } else {
-        Err("Not all threads were awaited".into())
-    }
+    Ok(())
 }
 
 fn extract_files(
@@ -258,7 +254,7 @@ fn extract_files(
             Ok(_) => (),
             Err(err) => return Err(err),
         }
-        println!(
+        log::debug!(
             "Extracted: {} -> {}",
             src_path.display(),
             dest_path.display()
@@ -282,6 +278,14 @@ pub fn retriever() -> Result<String, String> {
             "Please provide the serial number (--serial) or use list (--list) option.".into(),
         );
     }
+    log::set_logger(&logger::SimpleLogger).unwrap();
+    if arguments.debug {
+        log::set_max_level(log::LevelFilter::Debug);
+        log::debug!("Debug mode enabled!!")
+    } else {
+        log::set_max_level(log::LevelFilter::Info);
+    }
+    log::info!("Searching for backup data in '{}'", &arguments.backup_dir.display());
     let backups = get_backups(
         &arguments.backup_dir,
         &arguments.serial_number,
@@ -300,23 +304,33 @@ pub fn retriever() -> Result<String, String> {
         return Err(err);
     }
     if arguments.list {
-        list_backups(backups);
+        list_backups(&backups);
         return Ok("".into());
     }
 
-    // todo: swap current threads to thread pool and set this to threadpool
+    let mut manifests = Vec::new();
     for backup in backups {
         let manifest_db_path = backup.path.join("Manifest.db");
-        println!("Manifest: {}", manifest_db_path.display());
         if manifest_db_path.exists() {
-            match parse_manifest_db(&manifest_db_path, &backup, &arguments) {
-                Ok(info) => info,
-                Err(err) => {
-                    println!("{}", err);
-                    return Err("Failed".into())
-                }
+            manifests.push((backup, manifest_db_path));
+        }
+    }
+    log::info!("Number of manifests staged for extraction: {}", manifests.len());
+    log::info!("Number of workers assigned: {}", arguments.workers);
+    for (backup, manifest) in manifests {
+        let manifest_id = manifest.iter().rev().nth(1).unwrap_or_default().to_string_lossy().to_string();
+        log::info!("Extracting manifest: '{}'", &manifest_id);
+        let start = get_epoch();
+        match parse_manifest_db(&manifest, &backup, &arguments) {
+            Ok(_) => {
+                log::info!("Extraction completed for manifest: {:?}", manifest_id);
+                log::info!("Time taken: {}", squire::convert_seconds((get_epoch() - start) as i64, 1));
+            },
+            Err(err) => {
+                log::error!("{}", err);
+                return Err("".into());
             }
         }
     }
-    Ok("Success".into())
+    Ok("".into())
 }

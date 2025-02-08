@@ -1,12 +1,14 @@
-use crate::constant;
+use crate::{constant, squire};
 use std::path::PathBuf;
 
 /// Struct to construct the commandline arguments.
 pub struct ArgConfig {
     pub list: bool,
+    pub debug: bool,
     pub serial_number: String,
     pub backup_dir: PathBuf,
     pub output_dir: PathBuf,
+    pub workers: usize,
 }
 
 fn missing_value(key: &str) {
@@ -36,9 +38,11 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
 
     let mut version = false;
     let mut list = false;
+    let mut debug = false;
     let mut serial = String::new();
     let mut backup_dir = String::new();
     let mut output_dir = String::new();
+    let mut workers = String::new();
 
     // Loop through the command-line arguments and parse them.
     let mut i = 1; // Start from the second argument (args[0] is the program name).
@@ -60,6 +64,9 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
             "--list" | "-L" => {
                 list = true;
             }
+            "--debug" => {
+                debug = true;
+            }
             "--serial" | "-S" => {
                 i += 1; // Move to the next argument.
                 if i < args.len() {
@@ -80,6 +87,14 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
                 i += 1; // Move to the next argument.
                 if i < args.len() {
                     output_dir = args[i].clone();
+                } else {
+                    missing_value(&args[i - 1]);
+                }
+            }
+            "--workers" => {
+                i += 1; // Move to the next argument.
+                if i < args.len() {
+                    workers = args[i].clone();
                 } else {
                     missing_value(&args[i - 1]);
                 }
@@ -111,10 +126,17 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     } else {
         PathBuf::from(output_dir)
     };
+    let workers_final = if workers.is_empty() {
+        squire::default_workers()
+    } else {
+        workers.parse::<usize>().unwrap()
+    };
     ArgConfig {
         list,
+        debug,
         serial_number: serial,
         backup_dir: backup_dir_final,
         output_dir: output_dir_final,
+        workers: workers_final,
     }
 }
