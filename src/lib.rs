@@ -4,6 +4,7 @@ mod logger;
 mod parser;
 mod squire;
 
+use chrono::{DateTime, Local, Utc};
 use plist::Value;
 use rusqlite::{Connection, Result};
 use std::fs::{create_dir_all, read_dir, File};
@@ -14,12 +15,12 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use threadpool::ThreadPool;
 
 fn list_backups(backups: &Vec<backup::Backup>) {
-    let mut max_serial = "Serial Number".len();
-    let mut max_device = "Device".len();
-    let mut max_product = "Product Name".len();
-    let mut max_date = "Backup Date".len();
-    let mut max_encrypted = "Encrypted".len();
-    let mut max_size = "Size".len();
+    let mut max_serial = "Serial Number".len() + 3;
+    let mut max_device = "Device".len() + 3;
+    let mut max_product = "Product Name".len() + 3;
+    let mut max_date = "Backup Date".len() + 3;
+    let mut max_encrypted = "Encrypted".len() + 3;
+    let mut max_size = "Size".len() + 3;
     let mut backup_info = Vec::new();
 
     for backup in backups {
@@ -46,7 +47,7 @@ fn list_backups(backups: &Vec<backup::Backup>) {
     println!("\n\n{0:^1$}", title, table_width);
 
     println!(
-        "{:-<width_serial$} {:-<width_device$} {:-<width_product$} {:-<width_date$} {:-<width_enc$} {:-<width_size$}",
+        "{:-<width_serial$}  {:-<width_device$}  {:-<width_product$}  {:-<width_date$}  {:-<width_enc$}  {:-<width_size$}",
         "",
         "",
         "",
@@ -62,7 +63,7 @@ fn list_backups(backups: &Vec<backup::Backup>) {
     );
 
     println!(
-        "{:<width_serial$} {:<width_device$} {:<width_product$} {:<width_date$} {:<width_enc$} {:<width_size$}",
+        "{:<width_serial$}  {:<width_device$}  {:<width_product$}  {:<width_date$}  {:<width_enc$}  {:<width_size$}",
         "Serial Number",
         "Device",
         "Product",
@@ -78,7 +79,7 @@ fn list_backups(backups: &Vec<backup::Backup>) {
     );
 
     println!(
-        "{:-<width_serial$} {:-<width_device$} {:-<width_product$} {:-<width_date$} {:-<width_enc$} {:-<width_size$}",
+        "{:-<width_serial$}  {:-<width_device$}  {:-<width_product$}  {:-<width_date$}  {:-<width_enc$}  {:-<width_size$}",
         "",
         "",
         "",
@@ -97,7 +98,7 @@ fn list_backups(backups: &Vec<backup::Backup>) {
         &backup_info
     {
         println!(
-            "{:<width_serial$} {:<width_device$} {:<width_product$} {:<width_date$} {:<width_enc$} {:<width_size$}",
+            "{:<width_serial$}  {:<width_device$}  {:<width_product$}  {:<width_date$}  {:<width_enc$}  {:<width_size$}",
             serial_number,
             device_name,
             product_name,
@@ -147,6 +148,12 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
                         .as_ref()
                         .and_then(|v| v.as_dictionary()?.get("Last Backup Date"))
                         .and_then(Value::as_date);
+                    let datetime = date.map_or("".to_string(), |date| {
+                        let system_time: SystemTime = date.into();
+                        let datetime_utc: DateTime<Utc> = system_time.into();
+                        let datetime_local = datetime_utc.with_timezone(&Local);
+                        datetime_local.format("%b %d, %Y %I:%M %p").to_string()
+                    });
                     let seconds = date.map_or(0, |date| {
                         let system_time: SystemTime = date.into();
                         let duration_since_epoch = system_time
@@ -155,7 +162,8 @@ fn get_backups(backup_root: &Path, serial_filter: &str, list: bool) -> Vec<backu
                         duration_since_epoch.as_secs()
                     });
                     let backup_date = format!(
-                        "{} ago",
+                        "{} ({} ago)",
+                        datetime,
                         squire::convert_seconds((get_epoch() - seconds) as i64, 1)
                     );
 
@@ -195,7 +203,7 @@ fn parse_manifest_db(
     arguments: &parser::ArgConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(manifest_db_path)?;
-    let mut stmt = conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%' LIMIT 2")?;  // TODO: REVERT
+    let mut stmt = conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'")?;
     let rows = stmt.query_map([], |row| {
         let file_id: String = row.get(0)?;
         let relative_path: String = row.get(1)?;
@@ -285,7 +293,10 @@ pub fn retriever() -> Result<String, String> {
     } else {
         log::set_max_level(log::LevelFilter::Info);
     }
-    log::info!("Searching for backup data in '{}'", &arguments.backup_dir.display());
+    log::info!(
+        "Searching for backup data in '{}'",
+        &arguments.backup_dir.display()
+    );
     let backups = get_backups(
         &arguments.backup_dir,
         &arguments.serial_number,
@@ -315,17 +326,29 @@ pub fn retriever() -> Result<String, String> {
             manifests.push((backup, manifest_db_path));
         }
     }
-    log::info!("Number of manifests staged for extraction: {}", manifests.len());
+    log::info!(
+        "Number of manifests staged for extraction: {}",
+        manifests.len()
+    );
     log::info!("Number of workers assigned: {}", arguments.workers);
     for (backup, manifest) in manifests {
-        let manifest_id = manifest.iter().rev().nth(1).unwrap_or_default().to_string_lossy().to_string();
+        let manifest_id = manifest
+            .iter()
+            .rev()
+            .nth(1)
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         log::info!("Extracting manifest: '{}'", &manifest_id);
         let start = get_epoch();
         match parse_manifest_db(&manifest, &backup, &arguments) {
             Ok(_) => {
                 log::info!("Extraction completed for manifest: {:?}", manifest_id);
-                log::info!("Time taken: {}", squire::convert_seconds((get_epoch() - start) as i64, 1));
-            },
+                log::info!(
+                    "Time taken: {}",
+                    squire::convert_seconds((get_epoch() - start) as i64, 1)
+                );
+            }
             Err(err) => {
                 log::error!("{}", err);
                 return Err("".into());

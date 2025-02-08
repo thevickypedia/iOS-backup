@@ -1,8 +1,6 @@
-use std::{fs, thread};
 use std::fs::metadata;
 use std::path::Path;
-
-
+use std::{fs, thread};
 
 /// Function to convert seconds to human-readable format
 ///
