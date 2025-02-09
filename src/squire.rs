@@ -126,7 +126,7 @@ pub fn size_converter(byte_size: u64) -> String {
 }
 
 /// Returns the default number of worker threads (logical cores)
-/// If the number of logical cores cannot be determined, it defaults to 8
+/// If the number of logical cores cannot be determined, it defaults to 1
 ///
 /// # Returns
 ///
@@ -134,7 +134,14 @@ pub fn size_converter(byte_size: u64) -> String {
 pub fn default_workers() -> usize {
     let logical_cores = thread::available_parallelism();
     match logical_cores {
-        Ok(cores) => cores.get(),
+        Ok(cores) => {
+            let workers = cores.get();
+            if workers > 1 {
+                workers / 2
+            } else {
+                workers
+            }
+        }
         Err(err) => {
             log::error!("{}", err);
             1
@@ -191,26 +198,22 @@ pub fn media_filter() -> String {
 /// # Arguments
 ///
 /// * `relative_path` - The path to the file
+/// * `filename` - Name of the file
 ///
 /// # Returns
 ///
-/// A `String` with the file extension in upperacase
-pub fn file_type(relative_path: &PathBuf) -> PathBuf {
+/// A `String` with the file extension in uppercase
+pub fn file_type(relative_path: &PathBuf, filename: &String) -> PathBuf {
     // I basically want the file extension in upper case
     let file_extension = &relative_path
         .extension()
         .unwrap_or_default()
         .to_string_lossy()
         .to_uppercase();
-    let file_name = &relative_path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
     if file_extension.is_empty() {
         return relative_path.to_owned();
     }
-    PathBuf::from(&file_extension).join(file_name).to_owned()
+    PathBuf::from(&file_extension).join(filename).to_owned()
 }
 
 /// Classifies size into less than 1 MB, 10 MB, 100 MB, 1 GB, and the rest as unclassified.
@@ -238,23 +241,18 @@ fn classify_size(byte_size: usize) -> String {
     }
 }
 
-/// Function to get the size of a file or directory
+/// Creates a file path categorized by its size
 ///
 /// # Arguments
 ///
-/// * `relative_path` - The path to the file or directory
+/// * `src_path` - The path to the file or directory
+/// * `filename` - Name of the file
 ///
 /// # Returns
 ///
 /// A `String` with human-readable format of the file/directory size
-pub fn file_size(src_path: &Path, relative_path: &Path) -> PathBuf {
-    let raw_size = get_size(src_path);
-    let file_name = &relative_path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
-    PathBuf::from(&classify_size(raw_size as usize))
-        .join(file_name)
+pub fn file_size(src_path: &Path, filename: &String) -> PathBuf {
+    PathBuf::from(&classify_size(get_size(src_path) as usize))
+        .join(filename)
         .to_owned()
 }

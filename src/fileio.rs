@@ -3,7 +3,6 @@ use crate::{constant, squire};
 use plist::Value;
 use rusqlite::{Connection, Result};
 use std::fs::{create_dir_all, File};
-use std::io::copy;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
@@ -86,7 +85,9 @@ pub fn parse_manifest_db(
         match file {
             Ok((file_id, relative_path)) => {
                 let backup_cloned = backup.path.clone();
-                let output_dir_cloned = arguments.output_dir.clone();
+                let output_dir_cloned = arguments
+                    .output_dir
+                    .join(format!("{} - {}", backup.device_name, backup.serial_number));
                 let sender_cloned = sender.clone();
                 let organize_cloned = arguments.organize;
                 let progress_bar = Arc::clone(&progress_bar_base);
@@ -95,7 +96,7 @@ pub fn parse_manifest_db(
                         &backup_cloned,
                         &output_dir_cloned,
                         file_id,
-                        relative_path,
+                        &PathBuf::from(relative_path),
                         organize_cloned,
                     );
                     sender_cloned.send(result).expect("Failed to send result");
@@ -126,7 +127,7 @@ pub fn parse_manifest_db(
 ///
 /// * `backup_path` - The path to the backup directory
 /// * `output_path` - The path to the output directory
-/// * `file_id` - The file ID
+/// * `file_id` - The file ID to extract
 /// * `relative_path` - The relative path of the file
 ///
 /// # Returns
@@ -137,19 +138,25 @@ fn extract_files(
     backup_path: &Path,
     output_path: &Path,
     file_id: String,
-    relative_path: String,
+    relative_path: &PathBuf,
     organize: parser::Organizer,
 ) -> std::io::Result<()> {
     let src_path = backup_path.join(&file_id[..2]).join(file_id);
+    if !src_path.exists() {
+        let msg = format!("Path {} doesn't exist", src_path.display());
+        log::debug!("{}", msg);
+        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, msg))
+    }
+    let filename = relative_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
     let dest_path = match organize {
-        parser::Organizer::Type => {
-            output_path.join(squire::file_type(&PathBuf::from(relative_path)))
-        }
-        parser::Organizer::Size => output_path.join(squire::file_size(
-            &PathBuf::from(&src_path),
-            &PathBuf::from(relative_path),
-        )),
-        parser::Organizer::Auto => output_path.join(&relative_path),
+        parser::Organizer::Type => output_path.join(squire::file_type(relative_path, &filename)),
+        parser::Organizer::Size => output_path.join(squire::file_size(&src_path, &filename)),
+        parser::Organizer::Root => output_path.join(filename).to_owned(),
+        parser::Organizer::Auto => output_path.join(relative_path),
     };
     if let Some(parent) = dest_path.parent() {
         match create_dir_all(parent) {
@@ -157,18 +164,16 @@ fn extract_files(
             Err(err) => return Err(err),
         }
     }
-    if src_path.exists() {
-        let mut src_file = File::open(&src_path)?;
-        let mut dest_file = File::create(&dest_path)?;
-        match copy(&mut src_file, &mut dest_file) {
-            Ok(_) => (),
-            Err(err) => return Err(err),
-        }
-        log::debug!(
-            "Extracted: {} -> {}",
-            src_path.display(),
-            dest_path.display()
-        );
+    let mut src_file = File::open(&src_path)?;
+    let mut dest_file = File::create(&dest_path)?;
+    match std::io::copy(&mut src_file, &mut dest_file) {
+        Ok(_) => (),
+        Err(err) => return Err(err),
     }
+    log::debug!(
+        "Extracted: {} -> {}",
+        src_path.display(),
+        dest_path.display()
+    );
     Ok(())
 }

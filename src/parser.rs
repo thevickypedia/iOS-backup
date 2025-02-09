@@ -6,6 +6,7 @@ use std::path::PathBuf;
 pub enum Organizer {
     Type,
     Size,
+    Root,
     Auto,
 }
 
@@ -127,9 +128,10 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
                     match args[i].as_str() {
                         "type" => organize = Organizer::Type,
                         "size" => organize = Organizer::Size,
+                        "root" => organize = Organizer::Root,
                         "auto" => organize = Organizer::Auto,
                         _ => {
-                            println!("ERROR: '--organize' can only be 'type', 'size' or 'auto'");
+                            println!("ERROR: '--organize' can only be 'type', 'size', 'root' or 'auto' (default)");
                             std::process::exit(1)
                         }
                     }
@@ -171,7 +173,10 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
         if tmp.exists() {
             tmp
         } else {
-            println!("Backup directory '{}' does not exist!", tmp.display());
+            println!(
+                "ERROR: Backup directory '{}' does not exist!",
+                tmp.display()
+            );
             std::process::exit(1)
         }
     };
