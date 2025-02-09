@@ -88,10 +88,11 @@ pub fn parse_manifest_db(
                 let backup_cloned = backup.path.clone();
                 let output_dir_cloned = arguments.output_dir.clone();
                 let sender_cloned = sender.clone();
+                let organize_cloned = arguments.organize;
                 let progress_bar = Arc::clone(&progress_bar_base);
                 pool.execute(move || {
                     let result =
-                        extract_files(&backup_cloned, &output_dir_cloned, file_id, relative_path);
+                        extract_files(&backup_cloned, &output_dir_cloned, file_id, relative_path, organize_cloned);
                     sender_cloned.send(result).expect("Failed to send result");
                     // Safely update progress bar
                     let mut progress = progress_bar.lock().unwrap();
@@ -132,9 +133,14 @@ fn extract_files(
     output_path: &Path,
     file_id: String,
     relative_path: String,
+    organize: parser::Organizer,
 ) -> std::io::Result<()> {
     let src_path = backup_path.join(&file_id[..2]).join(file_id);
-    let dest_path = output_path.join(relative_path);
+    let dest_path = match organize {
+        parser::Organizer::Type => output_path.join(squire::file_type(&relative_path)),
+        parser::Organizer::Size => output_path.join(squire::file_size(&relative_path)),
+        parser::Organizer::Auto => output_path.join(&relative_path),
+    };
     if let Some(parent) = dest_path.parent() {
         match create_dir_all(parent) {
             Ok(_) => (),

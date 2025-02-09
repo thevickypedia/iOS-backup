@@ -46,7 +46,8 @@ fn main() {
 - `--debug` - Enable debug level logging.
 - `--all` - Extract all available backups.
 - `--serial` - Initiate backup extraction for given serial number(s).
-- `--workers` - Numbers of workers (threads) to spin up for extraction.
+- `--organize` - Organize the extracted files by the file type or file size.
+- `--workers` | `--threads` - Numbers of workers (threads) to spin up for extraction.
 - `--backup-dir` | `--source` - Custom path for the backup. Defaults to OS specific path.
 - `--output-dir` | `--destination` - Destination directory. Defaults to 'extracted' in current path.
 

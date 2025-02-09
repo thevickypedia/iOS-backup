@@ -1,6 +1,14 @@
 use crate::{constant, squire};
 use std::path::PathBuf;
 
+/// Enum to represent the different ways to organize the extracted files.
+#[derive(Debug, Clone, Copy)]
+pub enum Organizer {
+    Type,
+    Size,
+    Auto,
+}
+
 /// Struct to construct the commandline arguments.
 pub struct ArgConfig {
     pub list: bool,
@@ -10,6 +18,7 @@ pub struct ArgConfig {
     pub backup_dir: PathBuf,
     pub output_dir: PathBuf,
     pub workers: usize,
+    pub organize: Organizer,
 }
 
 /// Function to print an error message and exit when a value is missing.
@@ -48,7 +57,8 @@ fn helper() -> String {
     \t--debug: Enable debug level logging.\n\
     \t--all: Extract all available backups.\n\
     \t--serial: Initiate backup extraction for given serial number(s).\n\
-    \t--workers: Numbers of workers (threads) to spin up for extraction.\n\
+    \t--organize: Organize the extracted files by the file type or file size.\n\
+    \t--workers | --threads: Numbers of workers (threads) to spin up for extraction.\n\
     \t--backup-dir | --source: Custom path for the backup. Defaults to OS specific path.\n\
     \t--output-dir | --destination: Destination directory. Defaults to 'extracted' in current path.\n"
     .to_string()
@@ -73,6 +83,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     let mut workers = String::new();
     let mut backup_dir = String::new();
     let mut output_dir = String::new();
+    let mut organize = Organizer::Auto;
 
     // Loop through the command-line arguments and parse them.
     let mut i = 1; // Start from the second argument (args[0] is the program name).
@@ -102,10 +113,22 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
                     missing_value(&args[i - 1]);
                 }
             }
-            "--workers" => {
+            "--workers" | "--threads" => {
                 i += 1; // Move to the next argument.
                 if i < args.len() {
                     workers = args[i].clone();
+                } else {
+                    missing_value(&args[i - 1]);
+                }
+            }
+            "--organize" => {
+                i += 1; // Move to the next argument.
+                if i < args.len() {
+                    match args[i].as_str() {
+                        "type" => organize = Organizer::Type,
+                        "size" => organize = Organizer::Size,
+                        _ => organize = Organizer::Auto,
+                    }
                 } else {
                     missing_value(&args[i - 1]);
                 }
@@ -171,5 +194,6 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
         backup_dir: backup_dir_final,
         output_dir: output_dir_final,
         workers: workers_final,
+        organize,
     }
 }

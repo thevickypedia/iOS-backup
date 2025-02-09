@@ -2,6 +2,17 @@ use crate::squire;
 use rusqlite::Connection;
 use std::path::Path;
 
+/// Function to get the columns of a table
+///
+/// # Arguments
+///
+/// * `manifest_db_path` - The path to the manifest database
+/// * `limit` - The number of rows to limit the output to
+///
+/// # Returns
+///
+/// * `Ok` - If the function completes successfully
+/// * `Err` - If the function encounters an error
 #[allow(dead_code)]
 pub fn get_columns(manifest_db_path: &Path) -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(manifest_db_path)?;
@@ -19,6 +30,17 @@ pub fn get_columns(manifest_db_path: &Path) -> rusqlite::Result<(), Box<dyn std:
     Ok(())
 }
 
+/// Function to get the table data
+///
+/// # Arguments
+///
+/// * `manifest_db_path` - The path to the manifest database
+/// * `limit` - The number of rows to limit the output to
+///
+/// # Returns
+///
+/// * `Ok` - If the function completes successfully
+/// * `Err` - If the function encounters an error
 #[allow(dead_code)]
 pub fn get_table(
     manifest_db_path: &Path,

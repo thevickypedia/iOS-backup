@@ -5,6 +5,7 @@
 pub mod backup;
 /// Module to load the required structs
 pub mod constant;
+/// Module for database utilities
 pub mod dbutil;
 /// Module to handle database operations
 pub mod fileio;

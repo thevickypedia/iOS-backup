@@ -154,6 +154,11 @@ pub fn get_epoch() -> u64 {
     }
 }
 
+/// Returns the media filter for the database query
+///
+/// # Returns
+///
+/// A `String` containing the media filter with the supported file extensions
 pub fn media_filter() -> String {
     "WHERE lower(relativePath) LIKE '%.hevc'
        OR lower(relativePath) LIKE '%.h264'
@@ -179,4 +184,37 @@ pub fn media_filter() -> String {
        OR lower(relativePath) LIKE '%.bmp'
        OR lower(relativePath) LIKE '%.ico';"
         .to_string()
+}
+
+/// Function to get the file type
+///
+/// # Arguments
+///
+/// * `relative_path` - The path to the file
+///
+/// # Returns
+///
+/// A `String` with the file extension in upperacase
+pub fn file_type(relative_path: &String) -> String {
+    // I basically want the file extension in upper case
+    let file_extension = Path::new(relative_path)
+        .extension()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_uppercase();
+    file_extension.to_string()
+}
+
+/// Function to get the size of a file or directory
+///
+/// # Arguments
+///
+/// * `relative_path` - The path to the file or directory
+///
+/// # Returns
+///
+/// A `String` with human-readable format of the file/directory size
+pub fn file_size(relative_path: &String) -> String {
+    let file_size = get_size(Path::new(relative_path));
+    size_converter(file_size)
 }
