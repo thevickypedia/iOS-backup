@@ -13,6 +13,7 @@ pub mod logger;
 pub mod parser;
 /// Module for helper functions
 pub mod squire;
+mod dbutil;
 
 use rusqlite::Result;
 

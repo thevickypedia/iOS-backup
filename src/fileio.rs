@@ -6,7 +6,9 @@ use std::fs::{create_dir_all, File};
 use std::io::copy;
 use std::path::Path;
 use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
+use tqdm::{pbar, Pbar};
 
 /// Function to retrieve the value of a key from a plist file
 ///
@@ -53,6 +55,14 @@ pub fn parse_manifest_db(
     arguments: &parser::ArgConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(manifest_db_path)?;
+
+    // Get count to update progress bar
+    let mut count_stmt = conn.prepare(
+        "SELECT COUNT(*) FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'"
+    )?;
+    let count: usize = count_stmt.query_row([], |row| row.get(0))?;
+    let progress_bar_base: Arc<Mutex<Pbar>> = Arc::new(Mutex::new(pbar(Some(count))));
+
     let mut stmt = conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'")?;
     let rows = stmt.query_map([], |row| {
         let file_id: String = row.get(0)?;
@@ -70,10 +80,14 @@ pub fn parse_manifest_db(
                 let backup_cloned = backup.path.clone();
                 let output_dir_cloned = arguments.output_dir.clone();
                 let sender_cloned = sender.clone();
+                let progress_bar = Arc::clone(&progress_bar_base);
                 pool.execute(move || {
                     let result =
                         extract_files(&backup_cloned, &output_dir_cloned, file_id, relative_path);
                     sender_cloned.send(result).expect("Failed to send result");
+                    // Safely update progress bar
+                    let mut progress = progress_bar.lock().unwrap();
+                    progress.update(1).unwrap();
                 });
             }
             Err(err) => {
@@ -83,6 +97,7 @@ pub fn parse_manifest_db(
     }
     // Wait for all tasks to complete
     drop(sender); // Close the sending side of the channel
+    pool.join();
     for result in receiver {
         if let Err(err) = result {
             log::error!("Error processing files: {:?}", err);
