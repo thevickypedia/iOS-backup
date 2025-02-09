@@ -8,7 +8,7 @@ use std::path::Path;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
-use tqdm::{pbar, Pbar};
+use tqdm;
 
 /// Function to retrieve the value of a key from a plist file
 ///
@@ -58,14 +58,18 @@ pub fn parse_manifest_db(
 
     // Get count to update progress bar
     let mut count_stmt = conn.prepare(&format!(
-        "SELECT COUNT(*) FROM Files {}'",
+        "SELECT COUNT(*) FROM Files {}",
         squire::media_filter()
     ))?;
     let count: usize = count_stmt.query_row([], |row| row.get(0))?;
-    let progress_bar_base: Arc<Mutex<Pbar>> = Arc::new(Mutex::new(pbar(Some(count))));
+    let progress_bar_base = Arc::new(Mutex::new(
+        tqdm::tqdm(0..count)
+            .desc(Some("Extracting"))
+            .style(tqdm::Style::Block),
+    ));
 
     let mut stmt = conn.prepare(&format!(
-        "SELECT fileID, relativePath FROM Files {}'",
+        "SELECT fileID, relativePath FROM Files {}",
         squire::media_filter()
     ))?;
     let rows = stmt.query_map([], |row| {
@@ -91,7 +95,7 @@ pub fn parse_manifest_db(
                     sender_cloned.send(result).expect("Failed to send result");
                     // Safely update progress bar
                     let mut progress = progress_bar.lock().unwrap();
-                    progress.update(1).unwrap();
+                    progress.pbar.update(1).unwrap();
                 });
             }
             Err(err) => {
