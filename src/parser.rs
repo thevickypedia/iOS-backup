@@ -58,7 +58,7 @@ fn helper() -> String {
     \t--debug: Enable debug level logging.\n\
     \t--all: Extract all available backups.\n\
     \t--serial: Initiate backup extraction for given serial number(s).\n\
-    \t--organize: Organize the extracted files by the file type or file size.\n\
+    \t--organize: Organize the extracted files by type, size, root, and auto.\n\
     \t--workers | --threads: Numbers of workers (threads) to spin up for extraction.\n\
     \t--backup-dir | --source: Custom path for the backup. Defaults to OS specific path.\n\
     \t--output-dir | --destination: Destination directory. Defaults to 'extracted' in current path.\n"
