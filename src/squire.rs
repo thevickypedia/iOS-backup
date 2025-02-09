@@ -153,3 +153,30 @@ pub fn get_epoch() -> u64 {
         Err(_) => panic!("SystemTime before UNIX EPOCH!"),
     }
 }
+
+pub fn media_filter() -> String {
+    "WHERE lower(relativePath) LIKE '%.hevc'
+       OR lower(relativePath) LIKE '%.h264'
+       OR lower(relativePath) LIKE '%.mp4'
+       OR lower(relativePath) LIKE '%.m4v'
+       OR lower(relativePath) LIKE '%.mov'
+       OR lower(relativePath) LIKE '%.avi'
+       OR lower(relativePath) LIKE '%.aac'
+       OR lower(relativePath) LIKE '%.mp3'
+       OR lower(relativePath) LIKE '%.m4a'
+       OR lower(relativePath) LIKE '%.alac'
+       OR lower(relativePath) LIKE '%.aiff'
+       OR lower(relativePath) LIKE '%.wav'
+       OR lower(relativePath) LIKE '%.flac'
+       OR lower(relativePath) LIKE '%.ac3'
+       OR lower(relativePath) LIKE '%.eac3'
+       OR lower(relativePath) LIKE '%.heic'
+       OR lower(relativePath) LIKE '%.jpg'
+       OR lower(relativePath) LIKE '%.jpeg'
+       OR lower(relativePath) LIKE '%.png'
+       OR lower(relativePath) LIKE '%.gif'
+       OR lower(relativePath) LIKE '%.tiff'
+       OR lower(relativePath) LIKE '%.bmp'
+       OR lower(relativePath) LIKE '%.ico';"
+        .to_string()
+}

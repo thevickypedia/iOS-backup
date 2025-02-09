@@ -1,8 +1,9 @@
+use crate::squire;
 use rusqlite::Connection;
 use std::path::Path;
 
 #[allow(dead_code)]
-fn get_columns(manifest_db_path: &Path) -> rusqlite::Result<(), Box<dyn std::error::Error>> {
+pub fn get_columns(manifest_db_path: &Path) -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(manifest_db_path)?;
     let mut col_smt = conn.prepare("PRAGMA table_info(Files)")?;
     let columns: Vec<String> = col_smt
@@ -19,15 +20,18 @@ fn get_columns(manifest_db_path: &Path) -> rusqlite::Result<(), Box<dyn std::err
 }
 
 #[allow(dead_code)]
-fn get_table(
+pub fn get_table(
     manifest_db_path: &Path,
     limit: Option<usize>,
 ) -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(manifest_db_path)?;
-    let statement = if limit.is_some() {
-        format!("SELECT * FROM Files LIMIT {}", limit.unwrap())
-    } else {
-        "SELECT * FROM Files".to_string()
+    let statement = match limit {
+        Some(head) => format!(
+            "SELECT * FROM Files {} LIMIT {}",
+            squire::media_filter(),
+            head
+        ),
+        None => format!("SELECT * FROM Files {}", squire::media_filter()),
     };
     let mut col_smt = conn.prepare(&statement)?;
     let columns: Vec<String> = col_smt

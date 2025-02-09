@@ -5,6 +5,7 @@
 pub mod backup;
 /// Module to load the required structs
 pub mod constant;
+pub mod dbutil;
 /// Module to handle database operations
 pub mod fileio;
 /// Module to construct a custom logger
@@ -13,7 +14,6 @@ pub mod logger;
 pub mod parser;
 /// Module for helper functions
 pub mod squire;
-mod dbutil;
 
 use rusqlite::Result;
 

@@ -1,5 +1,5 @@
-use crate::constant;
 use crate::parser;
+use crate::{constant, squire};
 use plist::Value;
 use rusqlite::{Connection, Result};
 use std::fs::{create_dir_all, File};
@@ -57,13 +57,17 @@ pub fn parse_manifest_db(
     let conn = Connection::open(manifest_db_path)?;
 
     // Get count to update progress bar
-    let mut count_stmt = conn.prepare(
-        "SELECT COUNT(*) FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'"
-    )?;
+    let mut count_stmt = conn.prepare(&format!(
+        "SELECT COUNT(*) FROM Files {}'",
+        squire::media_filter()
+    ))?;
     let count: usize = count_stmt.query_row([], |row| row.get(0))?;
     let progress_bar_base: Arc<Mutex<Pbar>> = Arc::new(Mutex::new(pbar(Some(count))));
 
-    let mut stmt = conn.prepare("SELECT fileID, relativePath FROM Files WHERE relativePath LIKE '%DCIM/%' OR relativePath LIKE '%PhotoData/%'")?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT fileID, relativePath FROM Files {}'",
+        squire::media_filter()
+    ))?;
     let rows = stmt.query_map([], |row| {
         let file_id: String = row.get(0)?;
         let relative_path: String = row.get(1)?;

@@ -8,7 +8,7 @@
 [![none-shall-pass][nsp-logo]][nsp]
 
 #### Summary
-[`ios`][repo] is a light weight CLI tool to extract iPhone backups.
+[`ios`][repo] is a lightweight CLI tool to extract iPhone backups.
 
 ### Installation
 
