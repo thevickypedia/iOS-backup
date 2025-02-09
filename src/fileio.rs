@@ -4,7 +4,7 @@ use plist::Value;
 use rusqlite::{Connection, Result};
 use std::fs::{create_dir_all, File};
 use std::io::copy;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
@@ -91,8 +91,13 @@ pub fn parse_manifest_db(
                 let organize_cloned = arguments.organize;
                 let progress_bar = Arc::clone(&progress_bar_base);
                 pool.execute(move || {
-                    let result =
-                        extract_files(&backup_cloned, &output_dir_cloned, file_id, relative_path, organize_cloned);
+                    let result = extract_files(
+                        &backup_cloned,
+                        &output_dir_cloned,
+                        file_id,
+                        relative_path,
+                        organize_cloned,
+                    );
                     sender_cloned.send(result).expect("Failed to send result");
                     // Safely update progress bar
                     let mut progress = progress_bar.lock().unwrap();
@@ -137,8 +142,13 @@ fn extract_files(
 ) -> std::io::Result<()> {
     let src_path = backup_path.join(&file_id[..2]).join(file_id);
     let dest_path = match organize {
-        parser::Organizer::Type => output_path.join(squire::file_type(&relative_path)),
-        parser::Organizer::Size => output_path.join(squire::file_size(&relative_path)),
+        parser::Organizer::Type => {
+            output_path.join(squire::file_type(&PathBuf::from(relative_path)))
+        }
+        parser::Organizer::Size => output_path.join(squire::file_size(
+            &PathBuf::from(&src_path),
+            &PathBuf::from(relative_path),
+        )),
         parser::Organizer::Auto => output_path.join(&relative_path),
     };
     if let Some(parent) = dest_path.parent() {

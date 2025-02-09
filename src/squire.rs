@@ -1,5 +1,5 @@
 use std::fs::metadata;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs, thread};
 
@@ -195,14 +195,47 @@ pub fn media_filter() -> String {
 /// # Returns
 ///
 /// A `String` with the file extension in upperacase
-pub fn file_type(relative_path: &String) -> String {
+pub fn file_type(relative_path: &PathBuf) -> PathBuf {
     // I basically want the file extension in upper case
-    let file_extension = Path::new(relative_path)
+    let file_extension = &relative_path
         .extension()
         .unwrap_or_default()
         .to_string_lossy()
         .to_uppercase();
-    file_extension.to_string()
+    let file_name = &relative_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    if file_extension.is_empty() {
+        return relative_path.to_owned();
+    }
+    PathBuf::from(&file_extension).join(file_name).to_owned()
+}
+
+/// Classifies size into less than 1 MB, 10 MB, 100 MB, 1 GB, and the rest as unclassified.
+///
+/// # Arguments
+///
+/// * `byte_size` - Takes bytes as a usize object
+///
+/// # Returns
+///
+/// A `String` with the classified category.
+fn classify_size(byte_size: usize) -> String {
+    if byte_size < 1_000_000 {
+        "Less than 1 MB".to_string()
+    } else if byte_size <= 10_000_000 {
+        "1 MB - 10 MB".to_string()
+    } else if byte_size <= 100_000_000 {
+        "10 MB - 100 MB".to_string()
+    } else if byte_size <= 1_000_000_000 {
+        "100 MB - 1 GB".to_string()
+    } else if byte_size <= 10_000_000_000 {
+        "1 GB - 10 GB".to_string()
+    } else {
+        "More than 100 GB".to_string()
+    }
 }
 
 /// Function to get the size of a file or directory
@@ -214,7 +247,14 @@ pub fn file_type(relative_path: &String) -> String {
 /// # Returns
 ///
 /// A `String` with human-readable format of the file/directory size
-pub fn file_size(relative_path: &String) -> String {
-    let file_size = get_size(Path::new(relative_path));
-    size_converter(file_size)
+pub fn file_size(src_path: &Path, relative_path: &Path) -> PathBuf {
+    let raw_size = get_size(src_path);
+    let file_name = &relative_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    PathBuf::from(&classify_size(raw_size as usize))
+        .join(file_name)
+        .to_owned()
 }

@@ -27,7 +27,7 @@ pub struct ArgConfig {
 ///
 /// * `key` - The key that requires a value
 fn missing_value(key: &str) {
-    println!("{} requires a value.", key);
+    println!("ERROR: '{}' flag requires a value.", key);
     std::process::exit(1)
 }
 
@@ -127,7 +127,11 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
                     match args[i].as_str() {
                         "type" => organize = Organizer::Type,
                         "size" => organize = Organizer::Size,
-                        _ => organize = Organizer::Auto,
+                        "auto" => organize = Organizer::Auto,
+                        _ => {
+                            println!("ERROR: '--organize' can only be 'type', 'size' or 'auto'");
+                            std::process::exit(1)
+                        }
                     }
                 } else {
                     missing_value(&args[i - 1]);
