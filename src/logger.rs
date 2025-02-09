@@ -33,17 +33,17 @@ struct Echo;
 #[allow(dead_code)]
 impl Echo {
     fn error(msg: &String) {
-        println!("{}ERROR{}:{:<6}{}", Colors::RED, Colors::END, "", msg);
+        println!("{}ERROR{}{:<2}{}", Colors::RED, Colors::END, "", msg);
     }
     fn warning(msg: &String) {
-        println!("{}WARNING{}:{:<4}{}", Colors::YELLOW, Colors::END, "", msg);
+        println!("{}WARN{}{:<3}{}", Colors::YELLOW, Colors::END, "", msg);
     }
     fn info(msg: &String) {
-        println!("{}INFO{}:{:<7}{}", Colors::GREEN, Colors::END, "", msg);
+        println!("{}INFO{}{:<3}{}", Colors::GREEN, Colors::END, "", msg);
     }
     fn debug(msg: &String) {
         println!(
-            "{}DEBUG{}:{:<6}{}",
+            "{}DEBUG{}{:<2}{}",
             Colors::LIGHT_GREEN,
             Colors::END,
             "",
@@ -52,7 +52,7 @@ impl Echo {
     }
     fn trace(msg: &String) {
         println!(
-            "{}{}CRITICAL{}:{:<1}{}",
+            "{}{}TRACE{}{:<2}{}",
             Colors::LIGHT_GREEN,
             Format::BOLD,
             Colors::END,
