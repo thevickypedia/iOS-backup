@@ -23,3 +23,5 @@ jobs:
         contents: write
     steps:
         - uses: thevickypedia/rust-releaser@main
+          env:
+            GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
