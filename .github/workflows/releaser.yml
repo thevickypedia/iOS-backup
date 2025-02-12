@@ -1,0 +1,25 @@
+name: Rust Releaser
+
+on:
+  push:
+    branches: "*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        platform:
+          - build_for: Linux-x86_64
+            os: linux-amd64
+
+          - build_for: Windows-x86_64
+            os: windows-amd64
+
+          - build_for: macOS-x86_64
+            os: darwin-amd64
+    name: Initiate build for ${{ matrix.platform.build_for }}
+    runs-on: ${{ matrix.platform.os }}
+    permissions:
+        contents: write
+    steps:
+        - uses: thevickypedia/rust-releaser@main
