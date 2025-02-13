@@ -4,10 +4,11 @@ on:
   push:
     branches: "*"
 
+# https://docs.github.com/en/actions/sharing-automations/reusing-workflows#using-inputs-and-secrets-in-a-reusable-workflow
 jobs:
-    build:
-        uses: thevickypedia/rust-releaser/releaser.yml@main
-        secrets: inherit
+  build:
+    uses: thevickypedia/rust-releaser/.github/workflows/releaser.yml@main
+    secrets: inherit
 
 #   build:
 #     strategy:
