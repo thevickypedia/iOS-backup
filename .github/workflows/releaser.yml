@@ -5,23 +5,27 @@ on:
     branches: "*"
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        platform:
-          - build_for: Linux-x86_64
-            os: linux-amd64
+    build:
+        uses: thevickypedia/rust-releaser/releaser.yml@main
+        secrets: inherit
 
-          - build_for: Windows-x86_64
-            os: windows-amd64
+#   build:
+#     strategy:
+#       matrix:
+#         platform:
+#           - build_for: Linux-x86_64
+#             os: linux-amd64
 
-          - build_for: macOS-x86_64
-            os: darwin-amd64
-    name: Initiate build for ${{ matrix.platform.build_for }}
-    runs-on: ${{ matrix.platform.os }}
-    permissions:
-        contents: write
-    steps:
-        - uses: thevickypedia/rust-releaser@main
-          env:
-            GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+#           - build_for: Windows-x86_64
+#             os: windows-amd64
+
+#           - build_for: macOS-x86_64
+#             os: darwin-amd64
+#     name: Initiate build for ${{ matrix.platform.build_for }}
+#     runs-on: ${{ matrix.platform.os }}
+#     permissions:
+#         contents: write
+#     steps:
+#         - uses: thevickypedia/rust-releaser@main
+#           env:
+#             GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
