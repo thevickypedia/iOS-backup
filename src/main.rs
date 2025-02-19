@@ -1,5 +1,5 @@
 fn main() {
-    match ios::retriever() {
+    match ios::extractor() {
         Ok(res) => {
             println!("{}", res);
         }

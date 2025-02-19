@@ -38,12 +38,36 @@ fn missing_value(key: &str) {
 ///
 /// A `PathBuf` containing the default backup directory path
 fn default_ios_backup_directory() -> PathBuf {
+    let backup_dir = PathBuf::from(
+        squire::env_var("backup_dir", Some(vec!["source_dir", "source", "src"]))
+            .unwrap_or_default(),
+    );
+    if backup_dir.exists() {
+        return backup_dir;
+    }
     let home = dirs::home_dir().expect("Could not determine home directory");
     if cfg!(target_os = "windows") {
         home.join("AppData/Roaming/Apple Computer/MobileSync/Backup")
     } else {
         home.join("Library/Application Support/MobileSync/Backup")
     }
+}
+
+/// Default output directory
+///
+/// # Returns
+///
+/// A `PathBuf` containing the default output directory path
+fn default_output_directory() -> PathBuf {
+    let output_str = squire::env_var(
+        "output_dir",
+        Some(vec!["destination_dir", "destination", "dst"]),
+    )
+    .unwrap_or_default();
+    if output_str.is_empty() {
+        return PathBuf::from("extracted");
+    }
+    PathBuf::from(output_str)
 }
 
 /// Helper function to print the command-line arguments.
@@ -82,6 +106,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     let mut debug = false;
     let mut serial = String::new();
     let mut workers = String::new();
+    let mut env_file = String::new();
     let mut backup_dir = String::new();
     let mut output_dir = String::new();
     let mut organize = Organizer::Auto;
@@ -118,6 +143,14 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
                 i += 1; // Move to the next argument.
                 if i < args.len() {
                     workers = args[i].clone();
+                } else {
+                    missing_value(&args[i - 1]);
+                }
+            }
+            "--env" | "--env-file" => {
+                i += 1; // Move to the next argument.
+                if i < args.len() {
+                    env_file = args[i].clone();
                 } else {
                     missing_value(&args[i - 1]);
                 }
@@ -166,6 +199,12 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
         println!("{} {}", &metadata.pkg_name, &metadata.pkg_version);
         std::process::exit(0)
     }
+
+    if env_file.is_empty() {
+        env_file = squire::env_var("env_file", None).unwrap_or(".env".to_string())
+    }
+    let _ = dotenv::from_path(env_file);
+
     let backup_dir_final = if backup_dir.is_empty() {
         default_ios_backup_directory()
     } else {
@@ -181,7 +220,7 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
         }
     };
     let output_dir_final = if output_dir.is_empty() {
-        PathBuf::from("extracted")
+        default_output_directory()
     } else {
         PathBuf::from(output_dir)
     };
@@ -190,11 +229,18 @@ pub fn arguments(metadata: &constant::MetaData) -> ArgConfig {
     } else {
         workers.parse::<usize>().unwrap()
     };
+    if serial.is_empty() {
+        serial = squire::env_var("serial", None).unwrap_or_default()
+    }
     let serial_numbers: Vec<String> = serial
         .split(",")
         .filter(|s| !s.is_empty())
         .map(String::from)
         .collect();
+    // todo: implement env var check for all CLI arguments
+    // todo: remove the debug step
+    println!("{:?}", backup_dir_final);
+    println!("{:?}", output_dir_final);
     ArgConfig {
         list,
         all,

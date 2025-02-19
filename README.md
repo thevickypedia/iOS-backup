@@ -23,7 +23,7 @@ cargo add ios
 use ios;
 
 fn main() {
-    match ios::retriever() {
+    match ios::extractor() {
         Ok(res) => {
             println!("{}", res);
         }

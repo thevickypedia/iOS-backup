@@ -24,7 +24,7 @@ use rusqlite::Result;
 ///
 /// * `Ok` - If the function completes successfully
 /// * `Err` - If the function encounters an error
-pub fn retriever() -> Result<String, String> {
+pub fn extractor() -> Result<String, String> {
     let metadata = constant::build_info();
     let arguments = parser::arguments(&metadata);
     let empty_serial = arguments.serial_numbers.is_empty();

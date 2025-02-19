@@ -1,7 +1,7 @@
 use std::fs::metadata;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{fs, thread};
+use std::{env, fs, thread};
 
 /// Function to convert seconds to human-readable format
 ///
@@ -255,4 +255,33 @@ pub fn file_size(src_path: &Path, filename: &String) -> PathBuf {
     PathBuf::from(&classify_size(get_size(src_path) as usize))
         .join(filename)
         .to_owned()
+}
+
+/// Loads an environment variable by looking for both upper/lower case of the key
+///
+/// # Arguments
+///
+/// * `key` - Takes the key for env var as an argument
+///
+/// # Returns
+///
+/// A `String` with the response value from the environment variable
+pub fn env_var(env_key: &'static str, alias: Option<Vec<&'static str>>) -> Option<String> {
+    let mut alias_list = match alias {
+        Some(v) => v,
+        None => vec![env_key],
+    };
+    if !alias_list.contains(&env_key) {
+        alias_list.push(env_key);
+    }
+    for key in alias_list {
+        return match env::var(key.to_uppercase()) {
+            Ok(val) => Some(val),
+            Err(_) => match env::var(key.to_lowercase()) {
+                Ok(val) => Some(val),
+                Err(_) => continue,
+            },
+        };
+    }
+    None
 }

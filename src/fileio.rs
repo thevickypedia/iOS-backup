@@ -145,7 +145,7 @@ fn extract_files(
     if !src_path.exists() {
         let msg = format!("Path {} doesn't exist", src_path.display());
         log::debug!("{}", msg);
-        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, msg))
+        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, msg));
     }
     let filename = relative_path
         .file_name()
